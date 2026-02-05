@@ -1,0 +1,137 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <!-- viewport-fit=cover ensures the app fills the notches/status bar area -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <!-- Default theme color matches the new Header Orange -->
+    <meta name="theme-color" content="#FF7A00" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <title>CLA VENDAS</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class', // Enables manual toggling via 'dark' class on html tag
+        theme: {
+          extend: {
+            colors: {
+              brand: {
+                orange: '#FF7A00',
+                dark: '#1E1E1E',
+                darker: '#121212',
+                gray: '#404040',
+                light: '#E5E5E5'
+              }
+            },
+            fontFamily: {
+              sans: ['Inter', 'Roboto', 'sans-serif'],
+            },
+            keyframes: {
+              'fade-in': {
+                '0%': { opacity: '0' },
+                '100%': { opacity: '1' },
+              },
+              'slide-up': {
+                '0%': { transform: 'translateY(20px)', opacity: '0' },
+                '100%': { transform: 'translateY(0)', opacity: '1' },
+              },
+              'slide-down': {
+                '0%': { transform: 'translate(-50%, -100%)', opacity: '0' },
+                '100%': { transform: 'translate(-50%, 0)', opacity: '1' },
+              }
+            },
+            animation: {
+              'fade-in': 'fade-in 0.3s ease-out',
+              'slide-up': 'slide-up 0.4s ease-out',
+              'slide-down': 'slide-down 0.3s ease-out'
+            }
+          }
+        }
+      }
+    </script>
+    <style>
+      html, body, #root {
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        overflow: hidden; /* Prevent double scrollbars */
+      }
+      body {
+        /* Default background light gray for the banking feel */
+        background-color: #F3F4F6;
+        font-family: 'Inter', sans-serif;
+        -webkit-tap-highlight-color: transparent;
+      }
+      /* Custom scrollbar */
+      ::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+      }
+      ::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #D1D5DB; /* Lighter gray for scrollbar */
+        border-radius: 3px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #FF7A00;
+      }
+
+      /* Dark mode overrides */
+      html.dark body {
+        background-color: #121212;
+      }
+      html.dark ::-webkit-scrollbar-thumb {
+        background: #333;
+      }
+
+      /* Print Styles */
+      @media print {
+        body * {
+          visibility: hidden;
+        }
+        #receipt-content, #receipt-content * {
+          visibility: visible;
+        }
+        #receipt-content {
+          position: absolute;
+          left: 0;
+          top: 0;
+          width: 100%;
+          margin: 0;
+          padding: 0;
+          background-color: white !important;
+          color: black !important;
+        }
+        .fixed {
+          position: absolute !important;
+          background: white !important;
+        }
+      }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <script type="importmap">
+{
+  "imports": {
+    "lucide-react": "https://esm.sh/lucide-react@0.358.0",
+    "recharts": "https://esm.sh/recharts@2.12.3",
+    "react-router-dom": "https://esm.sh/react-router-dom@6.22.3",
+    "react/": "https://esm.sh/react@18.2.0/",
+    "react": "https://esm.sh/react@18.2.0",
+    "react-dom/": "https://esm.sh/react-dom@18.2.0/",
+    "react-dom": "https://esm.sh/react-dom@18.2.0",
+    "uuid": "https://esm.sh/uuid@9.0.1",
+    "date-fns": "https://esm.sh/date-fns@3.6.0",
+    "date-fns/": "https://esm.sh/date-fns@3.6.0/",
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.39.0"
+  }
+}
+</script>
+</head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
