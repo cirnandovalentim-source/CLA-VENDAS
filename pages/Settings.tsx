@@ -1,15 +1,20 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ICONS, ROUTES } from '../constants';
-import { Card, Button, Modal } from '../components/ui';
+import { Card, Button, Input } from '../components/ui';
 import { dataService, authService } from '../services/mockSupabase';
 import { useTheme } from '../contexts/ThemeContext';
-import { Moon, Sun } from 'lucide-react';
+import { Moon, Sun, Lock } from 'lucide-react';
 
 const Settings: React.FC = () => {
   const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
+  
+  // Security State
+  const [isVerified, setIsVerified] = useState(false);
+  const [passwordInput, setPasswordInput] = useState('');
+  const [authError, setAuthError] = useState('');
   
   const [loading, setLoading] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
@@ -17,6 +22,35 @@ const Settings: React.FC = () => {
   
   // File upload ref
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  // Focus password input on mount
+  useEffect(() => {
+     // Optional: Check if already verified in session storage if we wanted persistence per session
+     // For now, we ask every time the component mounts for max security
+  }, []);
+
+  const handleVerifyPassword = async (e?: React.FormEvent) => {
+      e?.preventDefault();
+      setAuthError('');
+      setLoading(true);
+
+      const user = authService.getSession();
+      if (!user) {
+          navigate(ROUTES.LOGIN);
+          return;
+      }
+
+      // Check password using authService
+      const { user: validUser, error } = await authService.login(user.email, passwordInput);
+
+      setLoading(false);
+      
+      if (validUser) {
+          setIsVerified(true);
+      } else {
+          setAuthError('Senha incorreta.');
+      }
+  };
 
   const handleDownloadBackup = async () => {
     setLoading(true);
@@ -80,6 +114,48 @@ const Settings: React.FC = () => {
     navigate(ROUTES.LOGIN);
   };
 
+  // --- LOCKED SCREEN ---
+  if (!isVerified) {
+      return (
+          <div className="flex flex-col h-screen bg-gray-100 dark:bg-[#121212] justify-center items-center p-6">
+              <div className="w-full max-w-sm space-y-6">
+                  <div className="text-center">
+                      <div className="w-16 h-16 bg-gray-200 dark:bg-[#2E2E2E] rounded-full flex items-center justify-center mx-auto mb-4 text-gray-500 dark:text-gray-400">
+                          <Lock size={32} />
+                      </div>
+                      <h2 className="text-xl font-bold text-gray-900 dark:text-white">Área Protegida</h2>
+                      <p className="text-sm text-gray-500 mt-2">Confirme sua senha para acessar Ajustes e Backup.</p>
+                  </div>
+
+                  <form onSubmit={handleVerifyPassword} className="bg-white dark:bg-[#1E1E1E] p-6 rounded-2xl shadow-sm border border-gray-200 dark:border-[#333] space-y-4">
+                      <Input 
+                          type="password"
+                          label="Sua Senha"
+                          placeholder="••••••"
+                          value={passwordInput}
+                          onChange={(e) => setPasswordInput(e.target.value)}
+                          autoFocus
+                      />
+                      {authError && <p className="text-red-500 text-xs text-center font-bold">{authError}</p>}
+                      
+                      <Button fullWidth type="submit" isLoading={loading}>
+                          Acessar
+                      </Button>
+                      
+                      <button 
+                        type="button"
+                        onClick={() => navigate(-1)}
+                        className="w-full text-center text-sm text-gray-400 mt-4 hover:text-gray-600"
+                      >
+                          Voltar
+                      </button>
+                  </form>
+              </div>
+          </div>
+      );
+  }
+
+  // --- UNLOCKED SETTINGS ---
   return (
     <div className="flex flex-col h-screen bg-gray-50 dark:bg-[#1A1A1A] text-gray-900 dark:text-white transition-colors duration-300">
       <div className="bg-white dark:bg-[#2E2E2E] p-4 flex items-center gap-4 border-b border-gray-200 dark:border-white/5 sticky top-0 z-10 transition-colors">

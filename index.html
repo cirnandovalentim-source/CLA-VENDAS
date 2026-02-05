@@ -4,16 +4,43 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <!-- viewport-fit=cover ensures the app fills the notches/status bar area -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <!-- Default theme color matches the new Header Orange -->
     <meta name="theme-color" content="#FF7A00" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <title>CLA VENDAS</title>
+    
+    <!-- SHIMS: Fix libraries expecting Node.js environment -->
+    <script>
+      window.global = window;
+      window.process = {
+        env: { NODE_ENV: 'production' }
+      };
+      
+      // ERROR TRAP: Captura erros de importação ou execução antes do React
+      window.onerror = function(msg, url, line, col, error) {
+        const loader = document.getElementById('initial-loader');
+        const errorContainer = document.getElementById('error-container');
+        const errorText = document.getElementById('error-text');
+        
+        console.error("Global Error:", msg, error);
+
+        if (loader) loader.style.display = 'none';
+        if (errorContainer && errorText) {
+            errorContainer.style.display = 'flex';
+            errorText.innerText = msg + "\n\n" + (error ? error.stack : '');
+        }
+        return false;
+      };
+      
+      // Captura erros de Promise (ex: falha ao carregar importação)
+      window.onunhandledrejection = function(event) {
+         window.onerror(event.reason ? event.reason.message : 'Erro desconhecido (Promise)', '', 0, 0, event.reason);
+      };
+    </script>
+
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
-        darkMode: 'class', // Enables manual toggling via 'dark' class on html tag
+        darkMode: 'class',
         theme: {
           extend: {
             colors: {
@@ -52,86 +79,124 @@
       }
     </script>
     <style>
-      html, body, #root {
+      html, body {
         height: 100%;
+        width: 100%;
         margin: 0;
         padding: 0;
-        overflow: hidden; /* Prevent double scrollbars */
-      }
-      body {
-        /* Default background light gray for the banking feel */
+        overflow: hidden;
         background-color: #F3F4F6;
+      }
+      #root {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        width: 100%;
+        overflow: hidden;
+      }
+      
+      /* Loading Spinner Styles */
+      #initial-loader {
+        position: absolute;
+        top: 0; left: 0; right: 0; bottom: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background-color: #F3F4F6;
+        color: #FF7A00;
+        font-family: sans-serif;
+        z-index: 9999;
+        transition: opacity 0.5s ease;
+      }
+      .spinner {
+        width: 40px;
+        height: 40px;
+        border: 4px solid #e5e5e5;
+        border-top: 4px solid #FF7A00;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin-bottom: 16px;
+      }
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+
+      /* Error Screen */
+      #error-container {
+        display: none;
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background-color: #FEF2F2;
+        color: #991B1B;
+        z-index: 10000;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+        text-align: center;
+      }
+
+      body {
         font-family: 'Inter', sans-serif;
         -webkit-tap-highlight-color: transparent;
       }
-      /* Custom scrollbar */
-      ::-webkit-scrollbar {
-        width: 6px;
-        height: 6px;
-      }
-      ::-webkit-scrollbar-track {
-        background: transparent;
-      }
-      ::-webkit-scrollbar-thumb {
-        background: #D1D5DB; /* Lighter gray for scrollbar */
-        border-radius: 3px;
-      }
-      ::-webkit-scrollbar-thumb:hover {
-        background: #FF7A00;
-      }
-
-      /* Dark mode overrides */
-      html.dark body {
-        background-color: #121212;
-      }
-      html.dark ::-webkit-scrollbar-thumb {
-        background: #333;
-      }
-
-      /* Print Styles */
+      ::-webkit-scrollbar { width: 6px; height: 6px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: #D1D5DB; border-radius: 3px; }
+      ::-webkit-scrollbar-thumb:hover { background: #FF7A00; }
+      html.dark body { background-color: #121212; }
+      html.dark ::-webkit-scrollbar-thumb { background: #333; }
+      
       @media print {
-        body * {
-          visibility: hidden;
-        }
-        #receipt-content, #receipt-content * {
-          visibility: visible;
-        }
-        #receipt-content {
-          position: absolute;
-          left: 0;
-          top: 0;
-          width: 100%;
-          margin: 0;
-          padding: 0;
-          background-color: white !important;
-          color: black !important;
-        }
-        .fixed {
-          position: absolute !important;
-          background: white !important;
-        }
+        body * { visibility: hidden; }
+        #receipt-content, #receipt-content * { visibility: visible; }
+        #receipt-content { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 0; background-color: white !important; color: black !important; }
       }
     </style>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <script type="importmap">
-{
-  "imports": {
-    "lucide-react": "https://esm.sh/lucide-react@0.358.0",
-    "recharts": "https://esm.sh/recharts@2.12.3",
-    "react-router-dom": "https://esm.sh/react-router-dom@6.22.3",
-    "react/": "https://esm.sh/react@18.2.0/",
-    "react": "https://esm.sh/react@18.2.0",
-    "react-dom/": "https://esm.sh/react-dom@18.2.0/",
-    "react-dom": "https://esm.sh/react-dom@18.2.0",
-    "uuid": "https://esm.sh/uuid@9.0.1",
-    "date-fns": "https://esm.sh/date-fns@3.6.0",
-    "date-fns/": "https://esm.sh/date-fns@3.6.0/",
-    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.39.0"
-  }
-}
-</script>
-</head>
+    
+    <!-- IMPORT MAP: FIXED with 'bundle' to prevent load errors -->
+    <script type="importmap">
+    {
+      "imports": {
+        "react": "https://esm.sh/react@18.2.0",
+        "react/": "https://esm.sh/react@18.2.0/",
+        "react-dom": "https://esm.sh/react-dom@18.2.0",
+        "react-dom/": "https://esm.sh/react-dom@18.2.0/",
+        "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+        "react-router-dom": "https://esm.sh/react-router-dom@6.22.3?bundle&deps=react@18.2.0,react-dom@18.2.0",
+        "recharts": "https://esm.sh/recharts@2.12.3?bundle&deps=react@18.2.0,react-dom@18.2.0,prop-types@15.8.1",
+        "lucide-react": "https://esm.sh/lucide-react@0.358.0?bundle&deps=react@18.2.0",
+        "uuid": "https://esm.sh/uuid@9.0.1?bundle",
+        "date-fns": "https://esm.sh/date-fns@3.6.0?bundle",
+        "date-fns/": "https://esm.sh/date-fns@3.6.0/",
+        "date-fns/locale": "https://esm.sh/date-fns@3.6.0/locale?bundle",
+        "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.39.0?bundle",
+        "prop-types": "https://esm.sh/prop-types@15.8.1"
+      }
+    }
+    </script>
+  </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div id="initial-loader">
+        <div class="spinner"></div>
+        <p>Iniciando CLA VENDAS...</p>
+      </div>
+    </div>
+
+    <!-- Error Fallback Display -->
+    <div id="error-container">
+        <h2 style="font-size: 1.5rem; font-weight: bold; margin-bottom: 1rem;">Ocorreu um erro ao carregar</h2>
+        <pre id="error-text" style="background: rgba(255,255,255,0.5); padding: 10px; border-radius: 8px; max-width: 100%; overflow: auto; text-align: left; margin-bottom: 20px;"></pre>
+        <button onclick="window.location.reload()" style="background: #991B1B; color: white; padding: 12px 24px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;">
+            Tentar Novamente
+        </button>
+    </div>
+
+    <!-- ENTRY POINT SCRIPT -->
+    <script type="module" src="/index.tsx"></script>
   </body>
 </html>

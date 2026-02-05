@@ -35,6 +35,9 @@ const Dashboard: React.FC = () => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
   };
 
+  // Logic to show notification only if there is overdue debt
+  const hasNotifications = stats.inadimplencia > 0;
+
   return (
     <div className="animate-fade-in relative bg-[#F3F4F6] dark:bg-[#121212] min-h-screen pb-24">
       
@@ -54,10 +57,18 @@ const Dashboard: React.FC = () => {
              <button onClick={() => setValuesVisible(!valuesVisible)} className="p-2 rounded-full hover:bg-white/10 transition-colors">
                 {valuesVisible ? ICONS.Eye : ICONS.EyeOff}
              </button>
-             <button className="p-2 rounded-full hover:bg-white/10 transition-colors relative">
+             
+             {/* Notification Bell - Fixed Logic */}
+             <button 
+                onClick={() => navigate(ROUTES.PAYMENTS)} 
+                className="p-2 rounded-full hover:bg-white/10 transition-colors relative"
+             >
                 {ICONS.Alert}
-                <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border border-[#FF7A00]"></span>
+                {hasNotifications && (
+                    <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-[#FF7A00]"></span>
+                )}
              </button>
+
              <button onClick={handleLogout} className="p-2 rounded-full hover:bg-white/10 transition-colors">
                 {ICONS.Logout}
              </button>
