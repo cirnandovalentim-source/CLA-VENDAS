@@ -327,9 +327,16 @@ const ClientDetails: React.FC = () => {
                             <span className="text-gray-900 dark:text-white font-bold">Compra #{sale.id.substring(0,6)}</span>
                             <Badge status={sale.status} />
                          </div>
-                         <p className="text-gray-500 dark:text-gray-400 text-xs">
-                            {format(new Date(sale.data_venda), 'dd/MM/yyyy')} • {sale.qtd_parcelas} parcelas
-                         </p>
+                         <div className="flex items-center gap-2">
+                             <p className="text-gray-500 dark:text-gray-400 text-xs">
+                                {format(new Date(sale.data_venda), 'dd/MM/yyyy')} • {sale.qtd_parcelas} parcelas
+                             </p>
+                             {sale.is_mumbuca && (
+                                <span className="bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full font-bold">
+                                    Mumbuca
+                                </span>
+                             )}
+                         </div>
                       </div>
                       <div className="text-right">
                          <p className={`font-bold ${isReturned ? 'text-gray-400 line-through' : 'text-[#FF7A00]'}`}>

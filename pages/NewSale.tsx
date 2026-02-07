@@ -25,6 +25,9 @@ const NewSale: React.FC = () => {
   const [installmentsCount, setInstallmentsCount] = useState(1);
   const [generatedInstallments, setGeneratedInstallments] = useState<Omit<Installment, 'id' | 'venda_id'>[]>([]);
   const [loading, setLoading] = useState(false);
+  
+  // Mumbuca State
+  const [isMumbuca, setIsMumbuca] = useState(false);
 
   // New Product Modal State
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
@@ -34,6 +37,14 @@ const NewSale: React.FC = () => {
     valor_avista: '',
     valor_parcelado: ''
   });
+
+  // 1. Session Check (Crucial for standalone pages)
+  useEffect(() => {
+    if (!session) {
+        alert("Sessão expirada. Faça login novamente.");
+        navigate(ROUTES.LOGIN);
+    }
+  }, [session, navigate]);
 
   useEffect(() => {
     const init = async () => {
@@ -52,12 +63,10 @@ const NewSale: React.FC = () => {
   }, [location.state]);
 
   // -- FILTER LOGIC --
-  // Helper to normalize text (remove accents) for better search
   const normalizeText = (text: string) => {
     return (text || '').normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
   };
   
-  // Helper to clean phone for search (remove formatting)
   const cleanPhone = (phone: string) => {
     return (phone || '').replace(/\D/g, '');
   };
@@ -113,13 +122,12 @@ const NewSale: React.FC = () => {
               ativo: true
           });
           
-          // Refresh list
           const updatedProducts = await dataService.getProducts();
           setProducts(updatedProducts);
-          
           setIsProductModalOpen(false);
       } catch (e) {
           console.error(e);
+          alert("Erro ao criar produto.");
       } finally {
           setLoading(false);
       }
@@ -140,7 +148,7 @@ const NewSale: React.FC = () => {
       list.push({
         numero_parcela: i + 1,
         valor: val,
-        data_vencimento: addMonths(today, i + 1).toISOString(), // First installment next month
+        data_vencimento: addMonths(today, i + 1).toISOString(),
         pago: false
       });
     }
@@ -153,7 +161,20 @@ const NewSale: React.FC = () => {
   }, [installmentsCount, step]);
 
   const handleFinishSale = async () => {
-    if (!selectedClient || cart.length === 0 || !session) return;
+    // 2. Explicit Validation
+    if (!session) {
+        alert("Erro de autenticação. Faça login novamente.");
+        return;
+    }
+    if (!selectedClient) {
+        alert("Erro: Nenhum cliente selecionado.");
+        return;
+    }
+    if (cart.length === 0) {
+        alert("Erro: Carrinho vazio.");
+        return;
+    }
+
     setLoading(true);
     try {
       await dataService.createSale({
@@ -161,18 +182,28 @@ const NewSale: React.FC = () => {
         vendedor_id: session.id,
         valor_total: cartTotal,
         qtd_parcelas: installmentsCount,
-        data_venda: new Date().toISOString()
+        data_venda: new Date().toISOString(),
+        is_mumbuca: isMumbuca
       }, generatedInstallments);
       
+      // Success Feedback
       navigate(ROUTES.SALES);
-    } catch (e) {
-      console.error(e);
+    } catch (e: any) {
+      console.error("Erro venda:", e);
+      let msg = e.message || "Erro desconhecido";
+      
+      // Helpful message for missing column error
+      if (msg.includes('is_mumbuca') && msg.includes('does not exist')) {
+          msg = "Erro no Banco de Dados: Coluna 'Mumbuca' não existe. Vá em Configurações > Banco de Dados e execute o Script de Correção.";
+      }
+      
+      alert(`Falha ao finalizar venda:\n${msg}`);
     } finally {
       setLoading(false);
     }
   };
 
-  // --- RENDER HELPERS ---
+  // --- RENDER ---
 
   return (
     <div className="flex flex-col h-screen bg-[#F3F4F6] dark:bg-[#121212] text-gray-900 dark:text-white transition-colors duration-300">
@@ -301,6 +332,25 @@ const NewSale: React.FC = () => {
                </div>
              </Card>
 
+             {/* MUMBUCA TOGGLE */}
+             <div 
+                onClick={() => setIsMumbuca(!isMumbuca)}
+                className={`p-4 rounded-2xl border-2 cursor-pointer transition-all flex items-center justify-between ${isMumbuca ? 'bg-red-50 border-red-500 dark:bg-red-900/20 dark:border-red-500' : 'bg-white border-gray-100 dark:bg-[#1E1E1E] dark:border-[#333]'}`}
+             >
+                <div className="flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${isMumbuca ? 'bg-red-500 text-white' : 'bg-gray-100 text-gray-400 dark:bg-[#333]'}`}>
+                        {ICONS.Wallet}
+                    </div>
+                    <div>
+                        <p className={`font-bold ${isMumbuca ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-white'}`}>Moeda Social Mumbuca</p>
+                        <p className="text-xs text-gray-500">Marcar esta venda com pagamento social</p>
+                    </div>
+                </div>
+                <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${isMumbuca ? 'border-red-500 bg-red-500' : 'border-gray-300'}`}>
+                    {isMumbuca && <span className="text-white text-xs font-bold">✓</span>}
+                </div>
+             </div>
+
              <div className="space-y-3">
                <label className="text-gray-700 dark:text-gray-300 font-bold ml-1">Número de Parcelas</label>
                <div className="grid grid-cols-4 gap-2">
@@ -345,12 +395,11 @@ const NewSale: React.FC = () => {
         )}
         {step === 3 && (
           <Button fullWidth onClick={handleFinishSale} isLoading={loading} className="py-4 text-lg">
-            Finalizar Venda
+            Finalizar Venda {isMumbuca && '(Mumbuca)'}
           </Button>
         )}
       </div>
 
-      {/* New Product Modal */}
       <Modal isOpen={isProductModalOpen} onClose={() => setIsProductModalOpen(false)} title="Novo Produto Rápido">
          <div className="space-y-4">
             <Input 

@@ -43,6 +43,7 @@ export interface Sale {
   data_venda: string; // ISO Date
   status: SaleStatus;
   cliente_nome?: string; // Helper for UI
+  is_mumbuca?: boolean; // Nova flag para Moeda Social
 }
 
 export interface Installment {

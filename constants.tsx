@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { 
   LayoutDashboard, 
@@ -41,6 +40,7 @@ export const ICONS = {
   Clients: <Users size={24} />,
   Sales: <ShoppingBag size={24} />,
   Payments: <Wallet size={24} />,
+  Wallet: <Wallet size={24} />,
   Settings: <Settings size={24} />,
   Add: <Plus size={24} />,
   Logout: <LogOut size={20} />,

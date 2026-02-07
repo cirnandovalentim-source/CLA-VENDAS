@@ -26,7 +26,14 @@ const SalesList: React.FC = () => {
           <Card key={sale.id} className="relative overflow-hidden border border-gray-100 dark:border-[#333]">
              <div className="flex justify-between items-start mb-2">
                <div>
-                 <h3 className="font-bold text-gray-900 dark:text-white text-lg">{sale.cliente_nome}</h3>
+                 <h3 className="font-bold text-gray-900 dark:text-white text-lg flex items-center gap-2">
+                    {sale.cliente_nome}
+                    {sale.is_mumbuca && (
+                        <span className="bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full font-bold">
+                            Mumbuca
+                        </span>
+                    )}
+                 </h3>
                  <p className="text-gray-500 text-xs">{format(new Date(sale.data_venda), 'dd/MM/yyyy')}</p>
                </div>
                <Badge status={sale.status} />

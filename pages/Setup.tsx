@@ -22,6 +22,10 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'cash_flow' AND column_name = 'venda_id') THEN
         ALTER TABLE cash_flow ADD COLUMN venda_id uuid;
     END IF;
+    -- Adicionar is_mumbuca em sales
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'sales' AND column_name = 'is_mumbuca') THEN
+        ALTER TABLE sales ADD COLUMN is_mumbuca boolean DEFAULT false;
+    END IF;
 END $$;
 
 -- 2. STORAGE: CRIAR BUCKET DE FOTOS
@@ -84,6 +88,7 @@ create table if not exists clients (
   cidade text,
   observacoes text,
   vendedor_id text,
+  foto_url text,
   created_at timestamptz default now()
 );
 
@@ -105,6 +110,7 @@ create table if not exists sales (
   qtd_parcelas integer default 1,
   data_venda timestamptz default now(),
   status text default 'ABERTA',
+  is_mumbuca boolean default false,
   created_at timestamptz default now()
 );
 
@@ -126,6 +132,7 @@ create table if not exists cash_flow (
   valor numeric default 0,
   descricao text,
   vendedor_id text,
+  venda_id uuid,
   created_at timestamptz default now()
 );
 
@@ -137,6 +144,9 @@ begin
   end if;
   if not exists (select 1 from information_schema.columns where table_name = 'cash_flow' and column_name = 'venda_id') then
     alter table cash_flow add column venda_id uuid;
+  end if;
+  if not exists (select 1 from information_schema.columns where table_name = 'sales' and column_name = 'is_mumbuca') then
+    alter table sales add column is_mumbuca boolean default false;
   end if;
 end $$;
 
