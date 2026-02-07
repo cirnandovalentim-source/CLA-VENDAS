@@ -21,6 +21,7 @@ export interface Client {
   observacoes?: string;
   vendedor_id: string;
   foto_url?: string; // Base64 string or URL
+  is_mumbuca?: boolean; // Flag para identificar cliente que usa moeda social
 }
 
 export interface Product {

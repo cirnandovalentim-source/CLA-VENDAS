@@ -55,7 +55,7 @@ const Clients: React.FC = () => {
   
   // Form State
   const [clientForm, setClientForm] = useState<Partial<Client>>({
-    nome: '', telefone: '', endereco: '', bairro: '', cidade: '', foto_url: ''
+    nome: '', telefone: '', endereco: '', bairro: '', cidade: '', foto_url: '', is_mumbuca: false
   });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -75,7 +75,7 @@ const Clients: React.FC = () => {
   const handleOpenCreate = () => {
     setEditingId(null);
     setSelectedFile(null);
-    setClientForm({ nome: '', telefone: '', endereco: '', bairro: '', cidade: '', foto_url: '' });
+    setClientForm({ nome: '', telefone: '', endereco: '', bairro: '', cidade: '', foto_url: '', is_mumbuca: false });
     setIsModalOpen(true);
   };
 
@@ -89,7 +89,8 @@ const Clients: React.FC = () => {
         endereco: client.endereco || '',
         bairro: client.bairro || '',
         cidade: client.cidade || '',
-        foto_url: client.foto_url || ''
+        foto_url: client.foto_url || '',
+        is_mumbuca: client.is_mumbuca || false
     });
     setIsModalOpen(true);
   };
@@ -205,7 +206,8 @@ const Clients: React.FC = () => {
                endereco: clientForm.endereco,
                bairro: clientForm.bairro,
                cidade: clientForm.cidade,
-               foto_url: finalPhotoUrl
+               foto_url: finalPhotoUrl,
+               is_mumbuca: clientForm.is_mumbuca
            };
            await dataService.updateClient(finalClientId, updates);
       }
@@ -292,7 +294,8 @@ const Clients: React.FC = () => {
                  endereco: endIdx > -1 ? cols[endIdx] : '',
                  bairro: bairroIdx > -1 ? cols[bairroIdx] : '',
                  cidade: cidIdx > -1 ? cols[cidIdx] : '',
-                 vendedor_id: session?.id || 'anon'
+                 vendedor_id: session?.id || 'anon',
+                 is_mumbuca: false
              };
              await dataService.createClient(newClient);
              count++;
@@ -303,10 +306,10 @@ const Clients: React.FC = () => {
       setTimeout(() => { setIsImportModalOpen(false); setImportStatus(''); }, 2000);
   };
 
-  const filteredClients = clients.filter(c => 
-    c.nome.toLowerCase().includes(search.toLowerCase()) || 
-    c.telefone.includes(search)
-  );
+  const filteredClients = clients.filter(c => {
+    const matchesSearch = c.nome.toLowerCase().includes(search.toLowerCase()) || c.telefone.includes(search);
+    return matchesSearch;
+  });
 
   return (
     <div className="p-5 animate-fade-in space-y-4">
@@ -343,11 +346,22 @@ const Clients: React.FC = () => {
           >
             <div className="flex justify-between items-center">
                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-full bg-gray-100 dark:bg-[#333] flex items-center justify-center overflow-hidden border border-gray-200 dark:border-white/10 shrink-0">
-                      <ClientAvatar url={client.foto_url} name={client.nome} />
+                  <div className="relative">
+                      <div className="w-12 h-12 rounded-full bg-gray-100 dark:bg-[#333] flex items-center justify-center overflow-hidden border border-gray-200 dark:border-white/10 shrink-0">
+                          <ClientAvatar url={client.foto_url} name={client.nome} />
+                      </div>
+                      {client.is_mumbuca && (
+                          <div className="absolute -bottom-1 -right-1 bg-red-500 text-white p-1 rounded-full border-2 border-white dark:border-[#1E1E1E]" title="Cliente Mumbuca">
+                             <div className="w-2.5 h-2.5 flex items-center justify-center">
+                                <svg width="100%" height="100%" viewBox="0 0 24 24" fill="currentColor"><path d="M21 18v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v1h-9a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h9zm-9-2h9v-4h-9v4z"/></svg>
+                             </div>
+                          </div>
+                      )}
                   </div>
                   <div>
-                    <h3 className="text-gray-900 dark:text-white font-semibold">{client.nome}</h3>
+                    <h3 className="text-gray-900 dark:text-white font-semibold flex items-center gap-2">
+                        {client.nome}
+                    </h3>
                     <p className="text-gray-500 dark:text-gray-400 text-sm">{client.telefone}</p>
                     <p className="text-gray-400 dark:text-gray-500 text-xs mt-1">{client.bairro} - {client.cidade}</p>
                   </div>
@@ -383,6 +397,12 @@ const Clients: React.FC = () => {
             <div className="absolute right-4 top-4 text-gray-400 dark:text-gray-500">{ICONS.Right}</div>
           </Card>
         ))}
+        {filteredClients.length === 0 && (
+            <div className="text-center py-10 opacity-70">
+                <div className="text-gray-300 mb-2 flex justify-center scale-150">{ICONS.Search}</div>
+                <p className="text-gray-500 font-medium">Nenhum cliente encontrado.</p>
+            </div>
+        )}
       </div>
 
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingId ? "Editar Cliente" : "Novo Cliente"}>
@@ -435,6 +455,25 @@ const Clients: React.FC = () => {
             value={clientForm.telefone || ''} 
             onChange={e => setClientForm({...clientForm, telefone: e.target.value})}
           />
+          
+          {/* MUMBUCA TOGGLE */}
+          <div 
+            onClick={() => setClientForm({...clientForm, is_mumbuca: !clientForm.is_mumbuca})}
+            className={`p-3 rounded-xl border cursor-pointer flex items-center justify-between transition-colors ${clientForm.is_mumbuca ? 'bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-500/30' : 'bg-gray-50 border-gray-200 dark:bg-[#252525] dark:border-[#333]'}`}
+          >
+             <div className="flex items-center gap-3">
+                 <div className={`w-8 h-8 rounded-full flex items-center justify-center ${clientForm.is_mumbuca ? 'bg-red-500 text-white' : 'bg-gray-200 text-gray-500 dark:bg-[#333]'}`}>
+                    {ICONS.Wallet}
+                 </div>
+                 <div>
+                    <p className={`text-sm font-bold ${clientForm.is_mumbuca ? 'text-red-600 dark:text-red-400' : 'text-gray-600 dark:text-gray-300'}`}>Cliente Mumbuca</p>
+                 </div>
+             </div>
+             <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${clientForm.is_mumbuca ? 'border-red-500 bg-red-500' : 'border-gray-300'}`}>
+                {clientForm.is_mumbuca && <span className="text-white text-[10px] font-bold">✓</span>}
+             </div>
+          </div>
+
           <Input 
             label="Endereço" 
             value={clientForm.endereco || ''} 

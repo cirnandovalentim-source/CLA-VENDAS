@@ -489,7 +489,7 @@ export const dataService = {
   },
 
   getInstallmentsByDate: async (date: Date): Promise<{ 
-     daily: (Installment & { cliente_nome: string, venda_id: string })[], 
+     daily: (Installment & { cliente_nome: string, venda_id: string, is_mumbuca?: boolean })[], 
      overdueCount: number 
   }> => {
     const filterId = getUserFilter();
@@ -497,9 +497,10 @@ export const dataService = {
     const end = endOfDay(date).toISOString();
     
     if (isSupabaseConfigured) {
+        // Updated query to fetch is_mumbuca from sales
         let query = supabase
             .from('installments')
-            .select('*, sales!inner(id, vendedor_id, clients(nome))')
+            .select('*, sales!inner(id, vendedor_id, is_mumbuca, clients(nome))')
             .eq('pago', false)
             .gte('data_vencimento', start)
             .lte('data_vencimento', end)
@@ -524,7 +525,12 @@ export const dataService = {
         const { count: overdueCount } = await overdueQuery;
 
         return {
-           daily: (daily || []).map((i: any) => ({ ...i, cliente_nome: i.sales?.clients?.nome || 'Desconhecido', venda_id: i.venda_id })),
+           daily: (daily || []).map((i: any) => ({ 
+               ...i, 
+               cliente_nome: i.sales?.clients?.nome || 'Desconhecido', 
+               venda_id: i.venda_id,
+               is_mumbuca: i.sales?.is_mumbuca
+           })),
            overdueCount: overdueCount || 0
         };
     }
@@ -542,7 +548,12 @@ export const dataService = {
       .map(i => {
         const sale = sales.find(s => s.id === i.venda_id);
         const client = clients.find(c => c.id === sale?.cliente_id);
-        return { ...i, cliente_nome: client?.nome || 'Desconhecido', venda_id: i.venda_id };
+        return { 
+            ...i, 
+            cliente_nome: client?.nome || 'Desconhecido', 
+            venda_id: i.venda_id,
+            is_mumbuca: sale?.is_mumbuca 
+        };
       });
 
     const overdueCount = installments.filter(i => visibleSaleIds.includes(i.venda_id) && !i.pago && new Date(i.data_vencimento) < startOfDay(new Date())).length;
@@ -550,21 +561,27 @@ export const dataService = {
     return { daily, overdueCount };
   },
 
-  getDueInstallments: async (): Promise<(Installment & { cliente_nome: string, venda_id: string })[]> => {
+  getDueInstallments: async (): Promise<(Installment & { cliente_nome: string, venda_id: string, is_mumbuca?: boolean })[]> => {
     const filterId = getUserFilter();
     const today = new Date();
     today.setHours(23, 59, 59, 999);
     
     if (isSupabaseConfigured) {
+        // Updated query to fetch is_mumbuca from sales
         let query = supabase
             .from('installments')
-            .select('*, sales!inner(id, vendedor_id, clients(nome))')
+            .select('*, sales!inner(id, vendedor_id, is_mumbuca, clients(nome))')
             .eq('pago', false)
             .lte('data_vencimento', today.toISOString())
             .order('data_vencimento');
         if (filterId) query = query.eq('sales.vendedor_id', filterId);
         const { data } = await query;
-        return (data || []).map((i: any) => ({ ...i, cliente_nome: i.sales?.clients?.nome || 'Desconhecido', venda_id: i.venda_id }));
+        return (data || []).map((i: any) => ({ 
+            ...i, 
+            cliente_nome: i.sales?.clients?.nome || 'Desconhecido', 
+            venda_id: i.venda_id,
+            is_mumbuca: i.sales?.is_mumbuca
+        }));
     }
 
     await delay(300);
@@ -579,7 +596,12 @@ export const dataService = {
       .map(i => {
         const sale = sales.find(s => s.id === i.venda_id);
         const client = clients.find(c => c.id === sale?.cliente_id);
-        return { ...i, cliente_nome: client?.nome || 'Desconhecido', venda_id: i.venda_id };
+        return { 
+            ...i, 
+            cliente_nome: client?.nome || 'Desconhecido', 
+            venda_id: i.venda_id,
+            is_mumbuca: sale?.is_mumbuca
+        };
       })
       .sort((a, b) => new Date(a.data_vencimento).getTime() - new Date(b.data_vencimento).getTime());
   },

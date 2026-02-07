@@ -13,9 +13,10 @@ const Payments: React.FC = () => {
   
   // Due List (Route) State
   const [selectedDate, setSelectedDate] = useState(new Date());
-  const [dueList, setDueList] = useState<(Installment & { cliente_nome: string, venda_id: string })[]>([]);
+  const [dueList, setDueList] = useState<(Installment & { cliente_nome: string, venda_id: string, is_mumbuca?: boolean })[]>([]);
   const [overdueCount, setOverdueCount] = useState(0);
   const [showOverdue, setShowOverdue] = useState(false);
+  const [showMumbucaOnly, setShowMumbucaOnly] = useState(false);
 
   // Cash Flow State
   const [cashFlow, setCashFlow] = useState<CashEntry[]>([]);
@@ -105,7 +106,8 @@ const Payments: React.FC = () => {
   const prevDay = () => setSelectedDate(subDays(selectedDate, 1));
 
   // Calculations
-  const totalDoDia = dueList.reduce((acc, i) => acc + i.valor, 0);
+  const filteredDueList = dueList.filter(item => !showMumbucaOnly || item.is_mumbuca);
+  const totalDoDia = filteredDueList.reduce((acc, i) => acc + i.valor, 0);
 
   // Cash Flow Calculations based on Period
   const getFilteredCashFlow = () => {
@@ -179,6 +181,15 @@ const Payments: React.FC = () => {
                 {ICONS.Right}
              </button>
           </div>
+
+          <div className="flex gap-2 overflow-x-auto pb-1">
+             <button 
+               onClick={() => setShowMumbucaOnly(!showMumbucaOnly)}
+               className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold transition-colors whitespace-nowrap border ${showMumbucaOnly ? 'bg-red-500 text-white border-red-500' : 'bg-white dark:bg-[#1E1E1E] text-gray-500 dark:text-gray-400 border-gray-200 dark:border-[#333]'}`}
+             >
+                {ICONS.Wallet} Apenas Mumbuca {showMumbucaOnly && '✓'}
+             </button>
+          </div>
           
           {/* Summary for the day */}
           <div className="flex justify-between items-center px-2">
@@ -208,18 +219,25 @@ const Payments: React.FC = () => {
           )}
 
           {/* List */}
-          {dueList.length === 0 ? (
+          {filteredDueList.length === 0 ? (
             <div className="text-center text-gray-500 py-10">
               <div className="mb-2 opacity-50 flex justify-center">{ICONS.Check}</div>
               <p>Nenhuma cobrança {showOverdue ? 'pendente' : 'para esta data'}.</p>
             </div>
           ) : (
-            dueList.map(item => {
+            filteredDueList.map(item => {
               const overdue = isPast(new Date(item.data_vencimento)) && !isToday(new Date(item.data_vencimento));
               return (
                 <Card key={item.id} className={`flex justify-between items-center border-l-4 ${overdue ? 'border-l-red-500' : 'border-l-[#FF7A00]'}`}>
                   <div>
-                    <h4 className="font-bold text-gray-900 dark:text-white">{item.cliente_nome}</h4>
+                    <h4 className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                        {item.cliente_nome}
+                        {item.is_mumbuca && (
+                            <span className="bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full font-bold">
+                                Mumbuca
+                            </span>
+                        )}
+                    </h4>
                     <p className="text-sm text-gray-500">Parcela {item.numero_parcela}</p>
                     <div className="flex items-center gap-2 mt-1">
                       {overdue && <span className="text-[10px] bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 px-1.5 py-0.5 rounded font-bold">Atrasado</span>}

@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Modal, Button } from './ui';
 import { Client, Sale, Installment } from '../types';
@@ -17,6 +18,39 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ isOpen, onClose, typ
 
   const handlePrint = () => {
     window.print();
+  };
+
+  const handleShareWhatsapp = () => {
+    const br = "%0A"; // Quebra de linha para URL
+    let message = "";
+
+    if (type === 'SALE') {
+        message = `🛍️ *COMPROVANTE DE VENDA*${br}*CLA VENDAS*${br}${br}`;
+        message += `*Cliente:* ${client.nome}${br}`;
+        message += `*Data:* ${format(new Date(data.data_venda), 'dd/MM/yyyy')}${br}`;
+        message += `*Cód Venda:* #${data.id.substring(0, 6)}${br}`;
+        message += `*Total:* R$ ${data.valor_total.toFixed(2)}${br}`;
+        message += `*Plano:* ${data.qtd_parcelas}x${br}`;
+    } else {
+        message = `🧾 *COMPROVANTE DE PAGAMENTO*${br}*CLA VENDAS*${br}${br}`;
+        message += `*Cliente:* ${client.nome}${br}`;
+        message += `*Parcela:* ${data.numero_parcela}${br}`;
+        message += `*Vencimento:* ${format(new Date(data.data_vencimento), 'dd/MM/yyyy')}${br}`;
+        message += `*Pagamento:* ${data.data_pagamento ? format(new Date(data.data_pagamento), 'dd/MM/yyyy') : format(new Date(), 'dd/MM/yyyy')}${br}`;
+        message += `*VALOR PAGO:* R$ ${data.valor.toFixed(2)}${br}`;
+    }
+
+    message += `${br}_Obrigado pela preferência!_`;
+
+    // Remove caracteres não numéricos do telefone
+    const phone = client.telefone ? client.telefone.replace(/\D/g, '') : '';
+    
+    // Se tiver telefone, abre direto no número, senão abre para escolher contato
+    const whatsappUrl = phone 
+        ? `https://wa.me/55${phone}?text=${message}`
+        : `https://wa.me/?text=${message}`;
+
+    window.open(whatsappUrl, '_blank');
   };
 
   const today = new Date();
@@ -102,9 +136,22 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ isOpen, onClose, typ
            </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3 pt-2">
-             <Button variant="secondary" onClick={onClose}>Fechar</Button>
-             <Button onClick={handlePrint} icon={ICONS.Printer}>Imprimir / PDF</Button>
+        <div className="flex gap-2 pt-2">
+             <Button 
+                variant="secondary" 
+                onClick={handlePrint} 
+                icon={ICONS.Printer}
+                className="flex-1"
+             >
+                Imprimir
+             </Button>
+             <Button 
+                onClick={handleShareWhatsapp} 
+                icon={ICONS.Share} 
+                className="flex-[2] bg-green-600 hover:bg-green-700 border-none shadow-lg shadow-green-600/20"
+             >
+                Enviar no WhatsApp
+             </Button>
         </div>
       </div>
     </Modal>

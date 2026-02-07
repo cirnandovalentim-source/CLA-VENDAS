@@ -18,6 +18,10 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'clients' AND column_name = 'foto_url') THEN
         ALTER TABLE clients ADD COLUMN foto_url text;
     END IF;
+    -- Adicionar is_mumbuca em clients
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'clients' AND column_name = 'is_mumbuca') THEN
+        ALTER TABLE clients ADD COLUMN is_mumbuca boolean DEFAULT false;
+    END IF;
     -- Adicionar venda_id em cash_flow
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'cash_flow' AND column_name = 'venda_id') THEN
         ALTER TABLE cash_flow ADD COLUMN venda_id uuid;
@@ -34,17 +38,10 @@ VALUES ('clientes-fotos', 'clientes-fotos', true)
 ON CONFLICT (id) DO NOTHING;
 
 -- 3. STORAGE: POLÍTICAS DE SEGURANÇA (RLS)
--- Como usamos autenticação própria (tabela users) e não o Supabase Auth,
--- as policies devem permitir acesso público ao bucket específico, 
--- pois o cliente Supabase atua como 'anon'.
 DROP POLICY IF EXISTS "Public Access" ON storage.objects;
 DROP POLICY IF EXISTS "Auth Upload" ON storage.objects;
-DROP POLICY IF EXISTS "Auth Update" ON storage.objects;
-DROP POLICY IF EXISTS "Auth Delete" ON storage.objects;
 DROP POLICY IF EXISTS "Give Access" ON storage.objects;
 DROP POLICY IF EXISTS "Give Upload" ON storage.objects;
-DROP POLICY IF EXISTS "Give Update" ON storage.objects;
-DROP POLICY IF EXISTS "Give Delete" ON storage.objects;
 
 -- Criamos as policies permissivas para o bucket específico
 CREATE POLICY "Give Access" ON storage.objects FOR SELECT USING ( bucket_id = 'clientes-fotos' );
@@ -64,8 +61,6 @@ create extension if not exists "uuid-ossp";
 -- 2. GARANTIR PERMISSÕES
 grant usage on schema public to postgres, anon, authenticated, service_role;
 grant all on all tables in schema public to postgres, anon, authenticated, service_role;
-grant all on all sequences in schema public to postgres, anon, authenticated, service_role;
-grant all on all functions in schema public to postgres, anon, authenticated, service_role;
 
 -- 3. CRIAÇÃO DAS TABELAS
 create table if not exists users (
@@ -89,6 +84,7 @@ create table if not exists clients (
   observacoes text,
   vendedor_id text,
   foto_url text,
+  is_mumbuca boolean default false,
   created_at timestamptz default now()
 );
 
@@ -142,8 +138,8 @@ begin
   if not exists (select 1 from information_schema.columns where table_name = 'clients' and column_name = 'foto_url') then
     alter table clients add column foto_url text;
   end if;
-  if not exists (select 1 from information_schema.columns where table_name = 'cash_flow' and column_name = 'venda_id') then
-    alter table cash_flow add column venda_id uuid;
+  if not exists (select 1 from information_schema.columns where table_name = 'clients' and column_name = 'is_mumbuca') then
+    alter table clients add column is_mumbuca boolean default false;
   end if;
   if not exists (select 1 from information_schema.columns where table_name = 'sales' and column_name = 'is_mumbuca') then
     alter table sales add column is_mumbuca boolean default false;
@@ -153,16 +149,9 @@ end $$;
 -- 5. STORAGE BUCKET E POLICIES
 insert into storage.buckets (id, name, public) values ('clientes-fotos', 'clientes-fotos', true) on conflict (id) do nothing;
 
-drop policy if exists "Public Access" on storage.objects;
-drop policy if exists "Auth Upload" on storage.objects;
-drop policy if exists "Auth Update" on storage.objects;
-drop policy if exists "Auth Delete" on storage.objects;
 drop policy if exists "Give Access" on storage.objects;
 drop policy if exists "Give Upload" on storage.objects;
-drop policy if exists "Give Update" on storage.objects;
-drop policy if exists "Give Delete" on storage.objects;
 
--- Policies permissivas para funcionar sem Supabase Auth
 create policy "Give Access" on storage.objects for select using ( bucket_id = 'clientes-fotos' );
 create policy "Give Upload" on storage.objects for insert with check ( bucket_id = 'clientes-fotos' );
 create policy "Give Update" on storage.objects for update with check ( bucket_id = 'clientes-fotos' );

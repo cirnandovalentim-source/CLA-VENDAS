@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { 
   LayoutDashboard, 
@@ -32,7 +33,8 @@ import {
   EyeOff,
   Printer,
   RotateCcw,
-  Camera
+  Camera,
+  Share2
 } from 'lucide-react';
 
 export const ICONS = {
@@ -69,7 +71,8 @@ export const ICONS = {
   EyeOff: <EyeOff size={20} />,
   Printer: <Printer size={16} />,
   Return: <RotateCcw size={16} />,
-  Camera: <Camera size={20} />
+  Camera: <Camera size={20} />,
+  Share: <Share2 size={20} />
 };
 
 export const ROUTES = {
