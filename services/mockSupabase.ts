@@ -38,7 +38,6 @@ const setStorage = <T>(key: string, data: T) => {
   try {
     localStorage.setItem(`cla_${key}`, JSON.stringify(data));
   } catch (e: any) {
-    // Check for Quota Exceeded
     if (
         e.name === 'QuotaExceededError' || 
         e.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
@@ -77,29 +76,31 @@ export const authService = {
           .select('*')
           .eq('email', email)
           .eq('senha', pass)
-          .single();
+          .maybeSingle(); 
 
         if (error) {
-            if (error.code === 'PGRST116') return { user: null, error: 'Usuário não encontrado.' };
-            if (error.code === '42P01') return { user: null, error: 'Tabela de usuários não existe no Supabase.' };
-            return { user: null, error: error.message };
+            console.error("Supabase Login Error:", error);
+            if (error.code === '42P01') return { user: null, error: 'Banco de dados não configurado. Vá em "Configurar" na tela inicial e depois em "Setup".' };
+            if (error.code === 'PGRST301' || error.message?.includes('JWT')) return { user: null, error: 'Chave de API inválida.' };
+            return { user: null, error: `Erro no banco: ${error.message}` };
         }
-        if (!data) return { user: null, error: 'Credenciais inválidas' };
-        if (!data.ativo) return { user: null, error: 'Usuário desativado' };
+        
+        if (!data) return { user: null, error: 'E-mail ou senha incorretos.' };
+        if (!data.ativo) return { user: null, error: 'Usuário desativado.' };
 
         const user: User = data;
         localStorage.setItem('cla_session', JSON.stringify(user));
         return { user, error: null };
-      } catch (e) {
-        console.error("Supabase Login Error:", e);
-        return { user: null, error: 'Erro de conexão com Supabase' };
+      } catch (e: any) {
+        console.error("Supabase Login Exception:", e);
+        return { user: null, error: 'Erro de conexão com o banco de dados.' };
       }
     } 
     
     // 2. Fallback to Mock
     await delay(500);
     const users = getStorage<User[]>('users', MOCK_USERS);
-    const user = users.find(u => u.email === email && pass === '123456'); // Mock password check
+    const user = users.find(u => u.email === email && pass === '123456'); 
     
     if (user) {
       localStorage.setItem('cla_session', JSON.stringify(user));
@@ -112,7 +113,20 @@ export const authService = {
     // 1. Try Supabase
     if (isSupabaseConfigured) {
       try {
-        const { data: existing } = await supabase.from('users').select('id').eq('email', email).single();
+        const { data: existing, error: checkError } = await supabase
+            .from('users')
+            .select('id')
+            .eq('email', email)
+            .maybeSingle();
+            
+        if (checkError) {
+             console.error("Check existing user error:", checkError);
+             if (checkError.code === '42P01') {
+                 return { user: null, error: 'ERRO: O Banco de Dados não tem as tabelas criadas. Vá na tela de Login -> Setup e rode o script.' };
+             }
+             return { user: null, error: 'Erro ao verificar e-mail. Verifique a conexão.' };
+        }
+
         if (existing) {
           return { user: null, error: 'E-mail já cadastrado.' };
         }
@@ -121,7 +135,7 @@ export const authService = {
           nome: name,
           email: email,
           senha: pass,
-          perfil: 'vendedor', // Default to vendedor for self-register
+          perfil: 'vendedor', 
           ativo: true,
           comissao_porcentagem: 0
         };
@@ -129,15 +143,17 @@ export const authService = {
         const { data, error } = await supabase.from('users').insert([newUser]).select().single();
         
         if (error) {
-          console.error(error);
-          return { user: null, error: 'Erro ao criar conta.' };
+          console.error("Create User Error:", error);
+          if (error.code === '42501') return { user: null, error: 'Permissão negada (RLS). Rode o script de EMERGÊNCIA no Setup.' };
+          return { user: null, error: 'Erro ao criar conta no banco.' };
         }
         
         const user: User = data;
         localStorage.setItem('cla_session', JSON.stringify(user));
         return { user, error: null };
 
-      } catch (e) {
+      } catch (e: any) {
+        console.error("Register Exception:", e);
         return { user: null, error: 'Erro de conexão.' };
       }
     }
@@ -170,10 +186,10 @@ export const authService = {
   getSession: getCurrentUser
 };
 
-// --- DATA SERVICE ---
-export const dataService = {
-  // Users
-  getSellers: async (): Promise<User[]> => {
+// --- DATA SERVICE (Refactored to avoid circular dependencies) ---
+
+// 1. Define functions independently
+const getSellers = async (): Promise<User[]> => {
     const filterId = getUserFilter();
     
     if (isSupabaseConfigured) {
@@ -186,9 +202,9 @@ export const dataService = {
     const users = getStorage<User[]>('users', MOCK_USERS);
     if (filterId) return users.filter(u => u.id === filterId);
     return users;
-  },
-  
-  createSeller: async (userData: Omit<User, 'id'>): Promise<void> => {
+};
+
+const createSeller = async (userData: Omit<User, 'id'>): Promise<void> => {
     if (isSupabaseConfigured) {
         const { error } = await supabase.from('users').insert([{ ...userData, senha: '123456' }]);
         if (error) throw error;
@@ -197,9 +213,9 @@ export const dataService = {
     await delay(300);
     const users = getStorage<User[]>('users', MOCK_USERS);
     setStorage('users', [...users, { ...userData, id: uuidv4(), ativo: true, senha: '123456' } as any]);
-  },
+};
 
-  updateSeller: async (id: string, updates: Partial<User>): Promise<void> => {
+const updateSeller = async (id: string, updates: Partial<User>): Promise<void> => {
     if (isSupabaseConfigured) {
         const { error } = await supabase.from('users').update(updates).eq('id', id);
         if (error) throw error;
@@ -212,9 +228,9 @@ export const dataService = {
         users[idx] = { ...users[idx], ...updates };
         setStorage('users', users);
     }
-  },
+};
 
-  deleteSeller: async (id: string): Promise<void> => {
+const deleteSeller = async (id: string): Promise<void> => {
     if (isSupabaseConfigured) {
         const { error } = await supabase.from('users').delete().eq('id', id);
         if (error) throw error;
@@ -223,15 +239,16 @@ export const dataService = {
     await delay(300);
     const users = getStorage<User[]>('users', MOCK_USERS);
     setStorage('users', users.filter(u => u.id !== id));
-  },
+};
 
-  // --- CLIENTS ---
-
-  getClients: async (): Promise<Client[]> => {
+// CLIENTS
+const getClients = async (): Promise<Client[]> => {
     const filterId = getUserFilter();
     if (isSupabaseConfigured) {
         let query = supabase.from('clients').select('*').order('nome');
-        if (filterId) query = query.eq('vendedor_id', filterId);
+        if (filterId) {
+             try { query = query.eq('vendedor_id', filterId); } catch (e) { console.warn("Filter fail", e); }
+        }
         const { data } = await query;
         return data || [];
     }
@@ -239,18 +256,18 @@ export const dataService = {
     let clients = getStorage<Client[]>('clients', INITIAL_CLIENTS);
     if (filterId) clients = clients.filter(c => c.vendedor_id === filterId);
     return clients;
-  },
+};
 
-  getClientById: async (id: string): Promise<Client | undefined> => {
+const getClientById = async (id: string): Promise<Client | undefined> => {
     if (isSupabaseConfigured) {
         const { data } = await supabase.from('clients').select('*').eq('id', id).single();
         return data || undefined;
     }
     await delay(200);
     return getStorage<Client[]>('clients', INITIAL_CLIENTS).find(c => c.id === id);
-  },
+};
 
-  uploadClientPhoto: async (file: File | Blob, clientId: string): Promise<string | null> => {
+const uploadClientPhoto = async (file: File | Blob, clientId: string): Promise<string | null> => {
     if (isSupabaseConfigured) {
         try {
             const timestamp = Date.now();
@@ -262,11 +279,8 @@ export const dataService = {
 
             if (uploadError) {
                 const errMsg = uploadError.message || (uploadError as any).error || '';
-                const isBucketError = errMsg.includes('Bucket not found') || errMsg.includes('not found');
-                const isRlsError = errMsg.includes('row-level security') || errMsg.includes('policy');
-
-                if (isBucketError || isRlsError) {
-                    alert("⚠️ CONFIGURAÇÃO NECESSÁRIA\n\nErro no upload: " + (isRlsError ? "Permissão negada (RLS)." : "Bucket não encontrado.") + "\n\nSOLUÇÃO: Vá em 'Configurações > Banco de Dados' e execute o Script de Correção.");
+                if (errMsg.includes('Bucket') || errMsg.includes('row-level')) {
+                    alert("⚠️ CONFIGURAÇÃO NECESSÁRIA: " + errMsg);
                     return null;
                 }
                 throw uploadError;
@@ -283,27 +297,42 @@ export const dataService = {
             return null;
         }
     } else {
-        return null; // Offline mode handles base64 in create/update directly
+        return null;
     }
-  },
+};
 
-  createClient: async (client: Omit<Client, 'id'>): Promise<Client> => {
+const createClient = async (client: Omit<Client, 'id'>): Promise<Client> => {
     const user = getCurrentUser();
-    const clientWithUser = { ...client, vendedor_id: user?.id || 'anon' };
-
+    let vId = user?.id || 'anon';
+    
     if (isSupabaseConfigured) {
-        const { data, error } = await supabase.from('clients').insert([clientWithUser]).select().single();
-        if (error) throw error;
-        return data;
+        try {
+            const { data, error } = await supabase.from('clients').insert([{ ...client, vendedor_id: vId }]).select().single();
+            if (error) {
+                if (error.message.includes("foreign key") || error.message.includes("uuid")) {
+                    const { data: retryData, error: retryError } = await supabase.from('clients').insert([{ 
+                        ...client, 
+                        vendedor_id: null 
+                    }]).select().single();
+                    if (retryError) throw retryError;
+                    return retryData;
+                }
+                throw error;
+            }
+            return data;
+        } catch (e: any) {
+             throw e;
+        }
     }
+    
     await delay(300);
     const clients = getStorage<Client[]>('clients', INITIAL_CLIENTS);
-    const newClient = { ...clientWithUser, id: uuidv4() };
+    const newClient = { ...client, vendedor_id: vId, id: uuidv4() };
     setStorage('clients', [newClient, ...clients]);
     return newClient;
-  },
+};
 
-  updateClient: async (id: string, updates: Partial<Client>): Promise<void> => {
+const updateClient = async (id: string, updates: Partial<Client>): Promise<void> => {
     if (isSupabaseConfigured) {
         const { error } = await supabase.from('clients').update(updates).eq('id', id);
         if (error) throw error;
@@ -316,9 +345,9 @@ export const dataService = {
         clients[idx] = { ...clients[idx], ...updates };
         setStorage('clients', clients);
     }
-  },
+};
 
-  deleteClient: async (id: string): Promise<void> => {
+const deleteClient = async (id: string): Promise<void> => {
     if (isSupabaseConfigured) {
         const { error } = await supabase.from('clients').delete().eq('id', id);
         if (error) throw error;
@@ -327,19 +356,19 @@ export const dataService = {
     await delay(300);
     const clients = getStorage<Client[]>('clients', INITIAL_CLIENTS);
     setStorage('clients', clients.filter(c => c.id !== id));
-  },
+};
 
-  // Products
-  getProducts: async (): Promise<Product[]> => {
+// PRODUCTS
+const getProducts = async (): Promise<Product[]> => {
     if (isSupabaseConfigured) {
         const { data } = await supabase.from('products').select('*').eq('ativo', true).order('nome');
         return data || [];
     }
     await delay(300);
     return getStorage<Product[]>('products', INITIAL_PRODUCTS);
-  },
+};
 
-  createProduct: async (productData: Omit<Product, 'id'>): Promise<void> => {
+const createProduct = async (productData: Omit<Product, 'id'>): Promise<void> => {
     if (isSupabaseConfigured) {
         const { error } = await supabase.from('products').insert([productData]);
         if (error) throw error;
@@ -348,9 +377,9 @@ export const dataService = {
     await delay(300);
     const products = getStorage<Product[]>('products', INITIAL_PRODUCTS);
     setStorage('products', [...products, { ...productData, id: uuidv4(), ativo: true }]);
-  },
+};
 
-  updateProduct: async (id: string, updates: Partial<Product>): Promise<void> => {
+const updateProduct = async (id: string, updates: Partial<Product>): Promise<void> => {
     if (isSupabaseConfigured) {
         const { error } = await supabase.from('products').update(updates).eq('id', id);
         if (error) throw error;
@@ -363,9 +392,9 @@ export const dataService = {
         products[idx] = { ...products[idx], ...updates };
         setStorage('products', products);
     }
-  },
+};
 
-  deleteProduct: async (id: string): Promise<void> => {
+const deleteProduct = async (id: string): Promise<void> => {
     if (isSupabaseConfigured) {
         const { error } = await supabase.from('products').delete().eq('id', id);
         if (error) throw error;
@@ -374,36 +403,33 @@ export const dataService = {
     await delay(300);
     const products = getStorage<Product[]>('products', INITIAL_PRODUCTS);
     setStorage('products', products.filter(p => p.id !== id));
-  },
+};
 
-  // Sales
-  getSales: async (): Promise<Sale[]> => {
+// SALES
+const getSales = async (): Promise<Sale[]> => {
     const filterId = getUserFilter();
 
     if (isSupabaseConfigured) {
         let query = supabase.from('sales').select('*, clients(nome)').order('data_venda', { ascending: false });
-        if (filterId) query = query.eq('vendedor_id', filterId);
-        
+        if (filterId) { try { query = query.eq('vendedor_id', filterId); } catch(e) {} }
         const { data } = await query;
         return (data || []).map((s: any) => ({ ...s, cliente_nome: s.clients?.nome || 'Desconhecido' }));
     }
     await delay(300);
     let sales = getStorage<Sale[]>('sales', []);
     const clients = getStorage<Client[]>('clients', INITIAL_CLIENTS);
-    
     if (filterId) sales = sales.filter(s => s.vendedor_id === filterId);
-
     return sales.map(s => ({
       ...s,
       cliente_nome: clients.find(c => c.id === s.cliente_id)?.nome || 'Cliente Desconhecido'
     })).sort((a, b) => new Date(b.data_venda).getTime() - new Date(a.data_venda).getTime());
-  },
+};
 
-  getSalesByClient: async (clientId: string): Promise<Sale[]> => {
+const getSalesByClient = async (clientId: string): Promise<Sale[]> => {
     const filterId = getUserFilter();
     if (isSupabaseConfigured) {
         let query = supabase.from('sales').select('*').eq('cliente_id', clientId).order('data_venda', { ascending: false });
-        if (filterId) query = query.eq('vendedor_id', filterId);
+        if (filterId) { try { query = query.eq('vendedor_id', filterId); } catch(e){} }
         const { data } = await query;
         return data || [];
     }
@@ -411,9 +437,9 @@ export const dataService = {
     let sales = getStorage<Sale[]>('sales', []);
     if (filterId) sales = sales.filter(s => s.vendedor_id === filterId);
     return sales.filter(s => s.cliente_id === clientId).sort((a, b) => new Date(b.data_venda).getTime() - new Date(a.data_venda).getTime());
-  },
+};
 
-  createSale: async (saleData: Omit<Sale, 'id' | 'status'>, installmentsData: Omit<Installment, 'id' | 'venda_id'>[]): Promise<void> => {
+const createSale = async (saleData: Omit<Sale, 'id' | 'status'>, installmentsData: Omit<Installment, 'id' | 'venda_id'>[]): Promise<void> => {
     if (isSupabaseConfigured) {
         const { data: sale, error: saleError } = await supabase.from('sales').insert([{ ...saleData, status: 'ABERTA' }]).select().single();
         if (saleError || !sale) throw saleError;
@@ -430,9 +456,9 @@ export const dataService = {
     const newInstallments = installmentsData.map(i => ({ ...i, id: uuidv4(), venda_id: newSaleId, pago: false, data_pagamento: null }));
     setStorage('sales', [newSale, ...sales]);
     setStorage('installments', [...installments, ...newInstallments]);
-  },
+};
 
-  deleteSale: async (saleId: string): Promise<void> => {
+const deleteSale = async (saleId: string): Promise<void> => {
     if (isSupabaseConfigured) {
         const { error } = await supabase.from('sales').delete().eq('id', saleId);
         if (error) throw error;
@@ -443,9 +469,9 @@ export const dataService = {
     const installments = getStorage<Installment[]>('installments', []);
     setStorage('sales', sales.filter(s => s.id !== saleId));
     setStorage('installments', installments.filter(i => i.venda_id !== saleId));
-  },
+};
   
-  returnSale: async (saleId: string): Promise<void> => {
+const returnSale = async (saleId: string): Promise<void> => {
       if (isSupabaseConfigured) {
           await supabase.from('sales').update({ status: 'DEVOLVIDO' }).eq('id', saleId);
           await supabase.from('installments').delete().eq('venda_id', saleId);
@@ -465,19 +491,19 @@ export const dataService = {
       setStorage('sales', sales);
       setStorage('installments', installments);
       setStorage('cash', cash);
-  },
+};
 
-  // Installments
-  getInstallmentsBySale: async (saleId: string): Promise<Installment[]> => {
+// INSTALLMENTS
+const getInstallmentsBySale = async (saleId: string): Promise<Installment[]> => {
     if (isSupabaseConfigured) {
         const { data } = await supabase.from('installments').select('*').eq('venda_id', saleId).order('numero_parcela');
         return data || [];
     }
     await delay(200);
     return getStorage<Installment[]>('installments', []).filter(i => i.venda_id === saleId).sort((a, b) => a.numero_parcela - b.numero_parcela);
-  },
+};
 
-  updateInstallment: async (id: string, updates: Partial<Pick<Installment, 'valor' | 'data_vencimento'>>): Promise<void> => {
+const updateInstallment = async (id: string, updates: Partial<Pick<Installment, 'valor' | 'data_vencimento'>>): Promise<void> => {
     if (isSupabaseConfigured) {
         const { error } = await supabase.from('installments').update(updates).eq('id', id);
         if (error) throw error;
@@ -490,9 +516,9 @@ export const dataService = {
         installments[index] = { ...installments[index], ...updates };
         setStorage('installments', installments);
     }
-  },
+};
 
-  getInstallmentsByDate: async (date: Date): Promise<{ 
+const getInstallmentsByDate = async (date: Date): Promise<{ 
      daily: (Installment & { cliente_nome: string, venda_id: string, is_mumbuca?: boolean })[], 
      overdueCount: number 
   }> => {
@@ -501,7 +527,6 @@ export const dataService = {
     const end = endOfDay(date).toISOString();
     
     if (isSupabaseConfigured) {
-        // Updated query to fetch is_mumbuca from sales
         let query = supabase
             .from('installments')
             .select('*, sales!inner(id, vendedor_id, is_mumbuca, clients(nome))')
@@ -511,7 +536,7 @@ export const dataService = {
             .order('data_vencimento');
         
         if (filterId) {
-             query = query.eq('sales.vendedor_id', filterId);
+             try { query = query.eq('sales.vendedor_id', filterId); } catch(e){}
         }
 
         const { data: daily } = await query;
@@ -523,7 +548,7 @@ export const dataService = {
             .lt('data_vencimento', startOfDay(new Date()).toISOString());
 
         if (filterId) {
-            overdueQuery = overdueQuery.eq('sales.vendedor_id', filterId);
+             try { overdueQuery = overdueQuery.eq('sales.vendedor_id', filterId); } catch(e){}
         }
 
         const { count: overdueCount } = await overdueQuery;
@@ -563,22 +588,21 @@ export const dataService = {
     const overdueCount = installments.filter(i => visibleSaleIds.includes(i.venda_id) && !i.pago && new Date(i.data_vencimento) < startOfDay(new Date())).length;
 
     return { daily, overdueCount };
-  },
+};
 
-  getDueInstallments: async (): Promise<(Installment & { cliente_nome: string, venda_id: string, is_mumbuca?: boolean })[]> => {
+const getDueInstallments = async (): Promise<(Installment & { cliente_nome: string, venda_id: string, is_mumbuca?: boolean })[]> => {
     const filterId = getUserFilter();
     const today = new Date();
     today.setHours(23, 59, 59, 999);
     
     if (isSupabaseConfigured) {
-        // Updated query to fetch is_mumbuca from sales
         let query = supabase
             .from('installments')
             .select('*, sales!inner(id, vendedor_id, is_mumbuca, clients(nome))')
             .eq('pago', false)
             .lte('data_vencimento', today.toISOString())
             .order('data_vencimento');
-        if (filterId) query = query.eq('sales.vendedor_id', filterId);
+        if (filterId) { try { query = query.eq('sales.vendedor_id', filterId); } catch(e){} }
         const { data } = await query;
         return (data || []).map((i: any) => ({ 
             ...i, 
@@ -608,15 +632,12 @@ export const dataService = {
         };
       })
       .sort((a, b) => new Date(a.data_vencimento).getTime() - new Date(b.data_vencimento).getTime());
-  },
+};
 
-  payInstallment: async (installmentId: string, vendedorId: string, actualAmountPaid?: number): Promise<void> => {
-    let currentInst: Installment | null = null;
-
+const payInstallment = async (installmentId: string, vendedorId: string, actualAmountPaid?: number): Promise<void> => {
     if (isSupabaseConfigured) {
         const { data: inst } = await supabase.from('installments').select('*').eq('id', installmentId).single();
         if (!inst || inst.pago) return;
-        currentInst = inst;
 
         const paidValue = actualAmountPaid !== undefined ? actualAmountPaid : inst.valor;
         const difference = inst.valor - paidValue;
@@ -720,9 +741,9 @@ export const dataService = {
     setStorage('installments', installments);
     setStorage('sales', sales);
     setStorage('cash', cash);
-  },
+};
 
-  addExpense: async (description: string, value: number, vendedorId: string): Promise<void> => {
+const addExpense = async (description: string, value: number, vendedorId: string): Promise<void> => {
      if (isSupabaseConfigured) {
          await supabase.from('cash_flow').insert([{ tipo: 'SAIDA', valor: value, descricao: description, vendedor_id: vendedorId, data: new Date().toISOString() }]);
          return;
@@ -731,9 +752,9 @@ export const dataService = {
      const cash = getStorage<CashEntry[]>('cash', []);
      cash.push({ id: uuidv4(), data: new Date().toISOString(), tipo: 'SAIDA', valor: value, descricao: description, vendedor_id: vendedorId });
      setStorage('cash', cash);
-  },
+};
 
-  deleteCashEntry: async (id: string): Promise<void> => {
+const deleteCashEntry = async (id: string): Promise<void> => {
       if (isSupabaseConfigured) {
           await supabase.from('cash_flow').delete().eq('id', id);
           return;
@@ -741,13 +762,13 @@ export const dataService = {
       await delay(300);
       const cash = getStorage<CashEntry[]>('cash', []);
       setStorage('cash', cash.filter(c => c.id !== id));
-  },
+};
 
-  getCashFlow: async (): Promise<CashEntry[]> => {
+const getCashFlow = async (): Promise<CashEntry[]> => {
       const filterId = getUserFilter();
       if (isSupabaseConfigured) {
           let query = supabase.from('cash_flow').select('*').order('data', { ascending: false });
-          if (filterId) query = query.eq('vendedor_id', filterId);
+          if (filterId) { try { query = query.eq('vendedor_id', filterId); } catch(e){} }
           const { data } = await query;
           return data || [];
       }
@@ -755,13 +776,13 @@ export const dataService = {
       let cash = getStorage<CashEntry[]>('cash', []);
       if (filterId) cash = cash.filter(c => c.vendedor_id === filterId);
       return cash.sort((a,b) => new Date(b.data).getTime() - new Date(a.data).getTime());
-  },
+};
   
-  getDashboardStats: async () => {
+const getDashboardStats = async () => {
       const filterId = getUserFilter();
       if (isSupabaseConfigured) {
           let salesQuery = supabase.from('sales').select('id, valor_total');
-          if (filterId) salesQuery = salesQuery.eq('vendedor_id', filterId);
+          if (filterId) { try { salesQuery = salesQuery.eq('vendedor_id', filterId); } catch(e){} }
           const { data: sales } = await salesQuery;
           const salesIds = sales?.map(s => s.id) || [];
           if (salesIds.length === 0) return { totalVendido: 0, totalRecebido: 0, totalReceber: 0, inadimplencia: 0 };
@@ -790,9 +811,9 @@ export const dataService = {
           totalReceber: installments.filter(i => !i.pago).reduce((acc, curr) => acc + curr.valor, 0),
           inadimplencia: installments.filter(i => !i.pago && new Date(i.data_vencimento) < today).reduce((acc, curr) => acc + curr.valor, 0)
       };
-  },
+};
 
-  getDetailedReports: async (startDate: Date, endDate: Date, sellerId?: string) => {
+const getDetailedReports = async (startDate: Date, endDate: Date, sellerId?: string) => {
     const processData = (salesRes: Sale[], cashRes: CashEntry[]) => {
         const interval = eachDayOfInterval({ start: startDate, end: endDate });
         const dailyData: DailyReport[] = interval.map(date => {
@@ -826,8 +847,10 @@ export const dataService = {
         let cashQuery = supabase.from('cash_flow').select('*').eq('tipo', 'ENTRADA').gte('data', startDate.toISOString()).lte('data', endDate.toISOString());
         
         if (finalSellerId && finalSellerId !== 'all') {
-            salesQuery = salesQuery.eq('vendedor_id', finalSellerId);
-            cashQuery = cashQuery.eq('vendedor_id', finalSellerId);
+            try {
+                salesQuery = salesQuery.eq('vendedor_id', finalSellerId);
+                cashQuery = cashQuery.eq('vendedor_id', finalSellerId);
+            } catch(e) {}
         }
 
         const { data: sData } = await salesQuery;
@@ -837,8 +860,9 @@ export const dataService = {
     }
     
     await delay(500);
-    const sales = await dataService.getSales(); 
-    const cash = await dataService.getCashFlow(); 
+    // CALL INTERNAL FUNCTIONS DIRECTLY TO AVOID CIRCULAR REFERENCE
+    const sales = await getSales(); 
+    const cash = await getCashFlow(); 
     
     let filteredSales = sales.filter(s => {
        const d = new Date(s.data_venda);
@@ -854,9 +878,9 @@ export const dataService = {
         filteredCash = filteredCash.filter(c => c.vendedor_id === finalSellerId);
     }
     return processData(filteredSales, filteredCash);
-  },
+};
 
-  exportBackupData: async (): Promise<string> => {
+const exportBackupData = async (): Promise<string> => {
       if (isSupabaseConfigured) {
           throw new Error("Exportação não disponível no modo Online (Supabase).");
       }
@@ -893,9 +917,9 @@ export const dataService = {
           cash: exportCash
       };
       return JSON.stringify(backup, null, 2);
-  },
+};
 
-  importBackupData: async (jsonData: string): Promise<void> => {
+const importBackupData = async (jsonData: string): Promise<void> => {
       if (isSupabaseConfigured) {
           throw new Error("Importação não disponível no modo Online (Supabase).");
       }
@@ -916,5 +940,39 @@ export const dataService = {
           console.error(e);
           throw new Error("Erro ao importar backup");
       }
-  }
+};
+
+// 2. Export Object (Safe Construction)
+export const dataService = {
+  getSellers,
+  createSeller,
+  updateSeller,
+  deleteSeller,
+  getClients,
+  getClientById,
+  uploadClientPhoto,
+  createClient,
+  updateClient,
+  deleteClient,
+  getProducts,
+  createProduct,
+  updateProduct,
+  deleteProduct,
+  getSales,
+  getSalesByClient,
+  createSale,
+  deleteSale,
+  returnSale,
+  getInstallmentsBySale,
+  updateInstallment,
+  getInstallmentsByDate,
+  getDueInstallments,
+  payInstallment,
+  addExpense,
+  deleteCashEntry,
+  getCashFlow,
+  getDashboardStats,
+  getDetailedReports,
+  exportBackupData,
+  importBackupData
 };

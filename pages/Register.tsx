@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Input } from '../components/ui';
@@ -100,8 +101,18 @@ const Register: React.FC = () => {
           </div>
 
           {error && (
-            <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm text-center">
-              {error}
+            <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm text-center">
+              <p className="font-bold mb-1">Falha no Registro</p>
+              <p>{error}</p>
+              {(error.includes('Setup') || error.includes('Tabelas')) && (
+                 <button 
+                   type="button"
+                   onClick={() => navigate(ROUTES.LOGIN)}
+                   className="mt-2 bg-red-500/20 px-3 py-1 rounded text-xs text-red-300 hover:bg-red-500/30"
+                 >
+                   Ir para Login &gt; Setup
+                 </button>
+              )}
             </div>
           )}
 

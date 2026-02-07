@@ -1,11 +1,12 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Input, Modal } from '../components/ui';
 import { authService } from '../services/mockSupabase';
-import { isSupabaseConfigured, configureSupabase, clearSupabaseConfig } from '../services/supabaseClient';
-import { ROUTES, ICONS } from '../constants';
-import { User, Lock } from 'lucide-react';
+import { isSupabaseConfigured, configureSupabase, clearSupabaseConfig, supabase } from '../services/supabaseClient';
+import { ROUTES } from '../constants';
+import { User, Lock, Database, CheckCircle, AlertTriangle, ExternalLink, Settings } from 'lucide-react';
+import { createClient } from '@supabase/supabase-js';
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
@@ -17,6 +18,30 @@ const Login: React.FC = () => {
   // Config Modal State
   const [showConfig, setShowConfig] = useState(false);
   const [apiKey, setApiKey] = useState('');
+  const [apiUrl, setApiUrl] = useState('');
+  const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
+  const [testMessage, setTestMessage] = useState('');
+
+  // Pre-fill URL based on current configuration or default
+  useEffect(() => {
+    if (showConfig) {
+        // Try to get from storage first, otherwise use the active client URL (which might be the hardcoded one)
+        const storedUrl = localStorage.getItem('cla_supabase_url');
+        const storedKey = localStorage.getItem('cla_supabase_key');
+        
+        // Extract URL from current supabase instance if storage is empty
+        // @ts-ignore
+        const currentUrl = supabase.supabaseUrl;
+        // @ts-ignore
+        const currentKey = supabase.supabaseKey;
+
+        setApiUrl(storedUrl || currentUrl || 'https://taubsuolhawpdibrhtkb.supabase.co');
+        setApiKey(storedKey || currentKey || '');
+        
+        setTestStatus('idle');
+        setTestMessage('');
+    }
+  }, [showConfig]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,22 +52,99 @@ const Login: React.FC = () => {
       const { user, error: authError } = await authService.login(email, password);
       if (authError) {
         setError(authError);
+        // Se o erro for de conexão/URL, sugere abrir config
+        if (authError.includes('conexão') || authError.includes('fetch') || authError.includes('URL')) {
+            setTimeout(() => setShowConfig(true), 1500);
+        }
       } else if (user) {
         navigate(ROUTES.DASHBOARD);
       }
     } catch (err) {
-      setError('Erro ao conectar ao servidor');
+      setError('Erro crítico ao tentar logar.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSaveConfig = () => {
-    if (apiKey.length < 20) {
-      alert("Chave inválida. Certifique-se de copiar a chave 'anon' / 'public' completa.");
+  const handleSaveConfig = async () => {
+    // 1. Basic Validation
+    if (!apiUrl) {
+        setTestStatus('error');
+        setTestMessage("Informe a URL do projeto.");
+        return;
+    }
+    if (!apiKey) {
+      setTestStatus('error');
+      setTestMessage("Informe a Chave de API.");
       return;
     }
-    configureSupabase(apiKey);
+    
+    // 2. Sanitization
+    const cleanUrl = apiUrl.trim();
+    const cleanKey = apiKey.trim();
+
+    // ERROR TRAP: User pasted PostgreSQL string instead of HTTP URL
+    if (cleanUrl.startsWith('postgresql://') || cleanUrl.startsWith('postgres://')) {
+        setTestStatus('error');
+        setTestMessage("Erro: Use a URL da API (https://...), não a do Banco.");
+        return;
+    }
+
+    if (!cleanUrl.startsWith('https://')) {
+        setTestStatus('error');
+        setTestMessage("A URL deve começar com https://");
+        return;
+    }
+
+    // 3. Connection Test
+    setTestStatus('testing');
+    setTestMessage("Testando conexão...");
+
+    try {
+        // Create a temporary client just to test credentials
+        const tempClient = createClient(cleanUrl, cleanKey);
+        
+        // Try a very simple query. Even if table doesn't exist, Supabase returns specific errors
+        // that prove connection was successful (vs network error).
+        const { error } = await tempClient.from('users').select('count', { count: 'exact', head: true });
+
+        // Analyze Error
+        if (error) {
+            // These errors mean we CONNECTED, but maybe tables are missing (which is fine, Setup fixes it)
+            const isTableMissing = error.code === '42P01' || error.message.includes('does not exist');
+            const isAuthError = error.code === 'PGRST301' || error.message.includes('JWT') || error.code === '401';
+            
+            if (isTableMissing) {
+                 // Success! Connected, but DB needs setup
+                 configureSupabase(cleanKey, cleanUrl);
+                 return;
+            }
+            
+            if (isAuthError) {
+                throw new Error("Chave de API inválida (Use a 'anon public').");
+            }
+            
+            // Other errors (like network)
+            if (error.message && (error.message.includes('FetchError') || error.message.includes('Failed to fetch'))) {
+                throw new Error("Erro de Rede: Verifique a URL.");
+            }
+            
+            console.warn("Connection warning:", error);
+        }
+
+        // If no error, or acceptable error, save!
+        setTestStatus('success');
+        setTestMessage("Conectado! Reiniciando...");
+        
+        setTimeout(() => {
+            configureSupabase(cleanKey, cleanUrl);
+        }, 1000);
+
+    } catch (err: any) {
+        console.error(err);
+        setTestStatus('error');
+        setTestMessage(err.message || "Falha ao conectar. Verifique URL e Chave.");
+    }
   };
 
   return (
@@ -106,77 +208,91 @@ const Login: React.FC = () => {
              >
               Não possui conta? <span className="text-[#FF7A00] font-bold">Cadastrar Usuário</span>
             </button>
-            <button type="button" className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
-              Esqueci minha senha
-            </button>
           </div>
         </div>
 
         {/* Technical Footer */}
-        <div className="mt-8 text-center space-y-2">
+        <div className="mt-8 text-center space-y-3">
           <div className="flex justify-center items-center gap-2">
-                <div className={`w-1.5 h-1.5 rounded-full ${isSupabaseConfigured ? 'bg-green-500' : 'bg-orange-500'}`}></div>
+                <div className={`w-2 h-2 rounded-full ${isSupabaseConfigured ? 'bg-green-500 animate-pulse' : 'bg-orange-500'}`}></div>
                 <p className="text-[10px] text-gray-500 uppercase tracking-widest font-bold">
-                  {isSupabaseConfigured ? 'Servidor Conectado' : 'Modo Local'}
+                  {isSupabaseConfigured ? 'Banco de Dados Conectado' : 'Modo Offline (Local)'}
                 </p>
           </div>
           
-          {!isSupabaseConfigured && (
-              <button 
-                onClick={() => setShowConfig(true)}
-                className="text-[10px] text-gray-500 underline hover:text-gray-900 dark:hover:text-white transition-colors"
-              >
-                Configurações do Servidor
-              </button>
-          )}
-
-          {isSupabaseConfigured && (
-              <div className="flex gap-4 justify-center">
+          <div className="flex gap-4 justify-center items-center">
                <button 
-                 onClick={() => navigate(ROUTES.SETUP)}
-                 className="text-[10px] text-gray-500 hover:text-[#FF7A00] transition-colors"
+                 onClick={() => setShowConfig(true)}
+                 className="text-[10px] bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 px-3 py-1.5 rounded-full text-gray-600 dark:text-gray-300 hover:bg-gray-50 transition-colors flex items-center gap-1.5"
                >
-                 Setup & Correções
+                 <Settings size={10} />
+                 {isSupabaseConfigured ? 'Editar Conexão' : 'Configurar'}
                </button>
-               <button 
-                 onClick={clearSupabaseConfig}
-                 className="text-[10px] text-gray-500 hover:text-red-500 transition-colors"
-               >
-                 Desconectar
-               </button>
-              </div>
-          )}
+               
+               {isSupabaseConfigured && (
+                   <button 
+                     onClick={() => navigate(ROUTES.SETUP)}
+                     className="text-[10px] text-gray-500 hover:text-[#FF7A00] transition-colors"
+                   >
+                     Setup & Correções
+                   </button>
+               )}
+          </div>
         </div>
       </div>
 
       {/* Configuration Modal */}
-      <Modal isOpen={showConfig} onClose={() => setShowConfig(false)} title="Configurar Conexão">
+      <Modal isOpen={showConfig} onClose={() => setShowConfig(false)} title="Conectar Supabase">
          <div className="space-y-4">
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-               Configuração técnica de conexão com banco de dados Supabase.
-            </p>
-            <div className="bg-gray-100 dark:bg-black/30 p-2 rounded text-xs font-mono text-gray-500 break-all">
-               Host: taubsuolhawpdibrhtkb.supabase.co
+            <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-100 dark:border-blue-900/30 text-xs text-blue-600 dark:text-blue-300">
+               <p className="mb-2">Para conectar, você precisa da <strong>URL</strong> e da <strong>Chave Pública (anon)</strong>.</p>
+               <a 
+                 href="https://supabase.com/dashboard/project/taubsuolhawpdibrhtkb/settings/api" 
+                 target="_blank" 
+                 rel="noopener noreferrer"
+                 className="flex items-center gap-1 text-[#FF7A00] font-bold underline hover:text-[#E66E00] transition-colors"
+               >
+                 Pegar Chave no Supabase <ExternalLink size={12} />
+               </a>
             </div>
+            
             <Input 
-               label="Chave de API (Public)"
+               label="URL do Projeto (API)"
+               placeholder="https://taubsuolhawpdibrhtkb.supabase.co"
+               value={apiUrl}
+               onChange={(e) => setApiUrl(e.target.value)}
+            />
+
+            <Input 
+               label="Chave Pública (anon public)"
                placeholder="eyJh..."
                value={apiKey}
                onChange={(e) => setApiKey(e.target.value)}
             />
-            <Button fullWidth onClick={handleSaveConfig}>
-               Salvar Conexão
+            
+            {testStatus !== 'idle' && (
+                <div className={`p-3 rounded-lg text-xs font-bold flex items-center gap-2 ${
+                    testStatus === 'error' ? 'bg-red-100 text-red-600' : 
+                    testStatus === 'success' ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-600'
+                }`}>
+                    {testStatus === 'testing' && <span className="animate-spin">⌛</span>}
+                    {testStatus === 'success' && <CheckCircle size={14} />}
+                    {testStatus === 'error' && <AlertTriangle size={14} />}
+                    {testMessage}
+                </div>
+            )}
+
+            <Button fullWidth onClick={handleSaveConfig} isLoading={testStatus === 'testing'}>
+               Testar Conexão e Salvar
             </Button>
             
-            {!isSupabaseConfigured && (
-               <div className="mt-4 pt-4 border-t border-gray-200 dark:border-white/10">
-                 <p className="text-xs text-center text-gray-500 mb-2">Login Padrão (Local)</p>
-                 <div className="flex justify-center gap-2">
-                    <span className="bg-gray-100 dark:bg-white/5 px-2 py-1 rounded text-xs text-gray-500">admin@cla.com</span>
-                    <span className="bg-gray-100 dark:bg-white/5 px-2 py-1 rounded text-xs text-gray-500">123456</span>
-                 </div>
-               </div>
-            )}
+            {/* Fallback info */}
+            <div className="mt-4 pt-4 border-t border-gray-200 dark:border-white/10">
+                <p className="text-xs text-center text-gray-500 mb-2">Se não conseguir conectar, use o modo local:</p>
+                <div className="flex justify-center gap-2">
+                   <button onClick={clearSupabaseConfig} className="text-xs text-red-500 underline">Voltar para Offline</button>
+                </div>
+            </div>
          </div>
       </Modal>
     </div>

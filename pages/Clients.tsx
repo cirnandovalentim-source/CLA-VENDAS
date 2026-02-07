@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ICONS, ROUTES } from '../constants';
@@ -10,7 +11,7 @@ import { Client } from '../types';
 const ClientAvatar: React.FC<{ url?: string; name: string }> = ({ url, name }) => {
   const [error, setError] = useState(false);
 
-  // Reseta o erro se a URL mudar (ex: upload de nova foto)
+  // Reseta o erro se a URL mudar
   useEffect(() => {
      setError(false);
   }, [url]);
@@ -132,10 +133,8 @@ const Clients: React.FC = () => {
                 const ctx = canvas.getContext('2d');
                 ctx?.drawImage(img, 0, 0, width, height);
                 
-                // Get Base64 for Preview
                 const base64 = canvas.toDataURL('image/jpeg', 0.7);
                 
-                // Get Blob for Upload
                 canvas.toBlob((blob) => {
                     if (blob) resolve({ base64, blob });
                     else reject(new Error("Canvas blob error"));
@@ -159,7 +158,7 @@ const Clients: React.FC = () => {
           setSelectedFile(new File([blob], file.name, { type: 'image/jpeg' }));
       } catch (err) {
           console.error("Erro ao processar imagem", err);
-          alert("Erro ao processar a imagem.");
+          alert("Erro ao processar a imagem. Tente uma foto menor.");
       } finally {
           setProcessingImage(false);
       }
@@ -178,7 +177,6 @@ const Clients: React.FC = () => {
 
       // 1. CREATE: Se for novo cliente
       if (!editingId) {
-          // Robust creation payload to avoid undefined values in Storage
           const newClientPayload = {
               nome: clientForm.nome || '',
               telefone: clientForm.telefone || '',
@@ -186,9 +184,8 @@ const Clients: React.FC = () => {
               bairro: clientForm.bairro || '',
               cidade: clientForm.cidade || '',
               observacoes: clientForm.observacoes || '',
-              vendedor_id: session?.id || 'anon',
-              // No modo Supabase, salvamos sem foto primeiro para gerar o ID
-              // No modo Offline, já salvamos o Base64 aqui (pois isSupabaseConfigured será false)
+              // Vendedor ID is handled inside dataService to fallback safely
+              vendedor_id: session?.id || '',
               foto_url: isSupabaseConfigured ? '' : finalPhotoUrl,
               is_mumbuca: clientForm.is_mumbuca || false
           };
@@ -225,7 +222,20 @@ const Clients: React.FC = () => {
       setIsModalOpen(false);
     } catch (error: any) {
       console.error("Save Client Error:", error);
-      alert("Erro ao salvar cliente: " + (error.message || JSON.stringify(error)));
+      let msg = error.message || "Erro desconhecido";
+      
+      // Mensagens amigáveis para erros comuns de banco de dados
+      if (msg.includes("relation") || msg.includes("does not exist") || msg.includes("column")) {
+          msg = "ERRO DE TABELA: O banco de dados está incompleto.\nVá em Configurações > Setup e use o 'Script de Correção'.";
+      } else if (msg.includes("policy") || msg.includes("RLS")) {
+          msg = "ERRO DE PERMISSÃO: O banco bloqueou a gravação.\nVá em Configurações > Setup e use a opção 'Emergência (Liberar Geral)'.";
+      } else if (msg.includes("foreign key") || msg.includes("uuid")) {
+          msg = "ERRO DE VÍNCULO: Seu usuário local não existe no banco online.\nVá em Configurações > Setup e use a opção 'Emergência (Liberar Geral)'.";
+      } else {
+          msg = `ERRO TÉCNICO:\n${msg}\n\nTente a opção 'Emergência' no Setup.`;
+      }
+
+      alert(msg);
     } finally {
       setLoading(false);
     }
@@ -346,7 +356,7 @@ const Clients: React.FC = () => {
         />
       </div>
 
-      <div className="space-y-3">
+      <div className="space-y-3 pb-24">
         {filteredClients.map(client => (
           <Card 
             key={client.id} 
@@ -415,7 +425,7 @@ const Clients: React.FC = () => {
       </div>
 
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingId ? "Editar Cliente" : "Novo Cliente"}>
-        <div className="space-y-4">
+        <div className="space-y-4 pb-10">
           <div className="flex justify-center mb-4">
              <div className="relative">
                 <div 
@@ -456,18 +466,18 @@ const Clients: React.FC = () => {
           <Input 
             label="Nome Completo *" 
             value={clientForm.nome || ''} 
-            onChange={e => setClientForm({...clientForm, nome: e.target.value})}
+            onChange={e => setClientForm(prev => ({...prev, nome: e.target.value}))}
           />
           <Input 
             label="Telefone (WhatsApp) *" 
             type="tel"
             value={clientForm.telefone || ''} 
-            onChange={e => setClientForm({...clientForm, telefone: e.target.value})}
+            onChange={e => setClientForm(prev => ({...prev, telefone: e.target.value}))}
           />
           
           {/* MUMBUCA TOGGLE */}
           <div 
-            onClick={() => setClientForm({...clientForm, is_mumbuca: !clientForm.is_mumbuca})}
+            onClick={() => setClientForm(prev => ({...prev, is_mumbuca: !prev.is_mumbuca}))}
             className={`p-3 rounded-xl border cursor-pointer flex items-center justify-between transition-colors ${clientForm.is_mumbuca ? 'bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-500/30' : 'bg-gray-50 border-gray-200 dark:bg-[#252525] dark:border-[#333]'}`}
           >
              <div className="flex items-center gap-3">
@@ -486,22 +496,22 @@ const Clients: React.FC = () => {
           <Input 
             label="Endereço" 
             value={clientForm.endereco || ''} 
-            onChange={e => setClientForm({...clientForm, endereco: e.target.value})}
+            onChange={e => setClientForm(prev => ({...prev, endereco: e.target.value}))}
           />
           <div className="grid grid-cols-2 gap-4">
             <Input 
                 label="Bairro" 
                 value={clientForm.bairro || ''} 
-                onChange={e => setClientForm({...clientForm, bairro: e.target.value})}
+                onChange={e => setClientForm(prev => ({...prev, bairro: e.target.value}))}
             />
             <Input 
                 label="Cidade" 
                 value={clientForm.cidade || ''} 
-                onChange={e => setClientForm({...clientForm, cidade: e.target.value})}
+                onChange={e => setClientForm(prev => ({...prev, cidade: e.target.value}))}
             />
           </div>
           <Button fullWidth onClick={handleSaveClient} isLoading={loading} disabled={processingImage}>
-            Salvar
+            {processingImage ? 'Processando Imagem...' : 'Salvar'}
           </Button>
         </div>
       </Modal>

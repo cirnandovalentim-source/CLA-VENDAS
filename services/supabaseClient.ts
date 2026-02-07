@@ -1,48 +1,59 @@
+
 import { createClient } from '@supabase/supabase-js';
 
-// Get env vars handling both standard Vite and some sandbox environments
-const getEnv = (key: string) => {
-  // @ts-ignore
-  if (typeof import.meta !== 'undefined' && import.meta.env) {
-    // @ts-ignore
-    return import.meta.env[key];
-  }
-  // @ts-ignore
-  if (typeof process !== 'undefined' && process.env) {
-    // @ts-ignore
-    return process.env[key];
-  }
-  return '';
-};
-
-// Storage keys for manual configuration via UI
+// Chaves do LocalStorage
 const LS_KEY = 'cla_supabase_key';
 const LS_URL = 'cla_supabase_url';
-const storedKey = localStorage.getItem(LS_KEY);
+
+// --- CREDENCIAIS DO PROJETO (Fornecidas pelo Usuário) ---
+// Separamos a string fornecida:
+// URL: https://taubsuolhawpdibrhtkb.supabase.co
+// Key: sb_publishable_8ZQqb0ErWyz5oP_BWQqECQ_Ospm1Q08
+const PROJECT_URL = 'https://taubsuolhawpdibrhtkb.supabase.co';
+const PROJECT_KEY = 'sb_publishable_8ZQqb0ErWyz5oP_BWQqECQ_Ospm1Q08'; 
+
+// --- VALORES DE FALLBACK ---
+const DUMMY_URL = 'https://placeholder.supabase.co';
+
+// 1. Recuperar do Storage (Prioridade Máxima - permite override manual)
 const storedUrl = localStorage.getItem(LS_URL);
+const storedKey = localStorage.getItem(LS_KEY);
 
-// Use provided URL and Key as default if not in Env or Storage
-// NOTE: These defaults are placeholders to prevent crashes, but should NOT be treated as valid configuration.
-const DEFAULT_URL = 'https://taubsuolhawpdibrhtkb.supabase.co';
-const DEFAULT_KEY = 'sb_publishable_8ZQqb0ErWyz5oP_BWQqECQ_Ospm1Q08';
+// 2. Recuperar do Env (opcional)
+// @ts-ignore
+const envUrl = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_SUPABASE_URL : '';
+// @ts-ignore
+const envKey = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_SUPABASE_KEY : '';
 
-const SUPABASE_URL = getEnv('VITE_SUPABASE_URL') || storedUrl || DEFAULT_URL;
-const SUPABASE_KEY = getEnv('VITE_SUPABASE_KEY') || storedKey || DEFAULT_KEY;
+// 3. Determinar URL Final
+let finalUrl = PROJECT_URL; // Default para o projeto do usuário
+let finalKey = PROJECT_KEY;
 
-// Validate configuration
+// Se houver override no Storage, usa ele
+if (storedUrl && storedUrl.includes('http')) {
+    finalUrl = storedUrl.trim();
+} else if (envUrl && envUrl.includes('http')) {
+    finalUrl = envUrl.trim();
+}
+
+if (storedKey && storedKey.length > 5) {
+    finalKey = storedKey.trim();
+} else if (envKey && envKey.length > 5) {
+    finalKey = envKey.trim();
+}
+
+// 4. Configuração de Estado
+// Consideramos configurado se a URL for válida e não for o placeholder dummy
 export const isSupabaseConfigured = 
-  SUPABASE_URL && 
-  SUPABASE_KEY && 
-  SUPABASE_KEY.length > 30 && 
-  !SUPABASE_URL.includes('YOUR_PROJECT_ID') &&
-  SUPABASE_URL !== DEFAULT_URL && // Treat default URL as not configured
-  SUPABASE_KEY !== DEFAULT_KEY;   // Treat default Key as not configured
+  finalUrl !== DUMMY_URL && 
+  finalUrl.startsWith('http') &&
+  finalKey.length > 0;
 
-// Helper to save credentials from UI
-export const configureSupabase = (key: string, url?: string) => {
-  if (key) localStorage.setItem(LS_KEY, key);
-  if (url) localStorage.setItem(LS_URL, url);
-  window.location.reload(); // Reload to re-init client
+// 5. Funções Auxiliares
+export const configureSupabase = (key: string, url: string) => {
+  if (key) localStorage.setItem(LS_KEY, key.trim());
+  if (url) localStorage.setItem(LS_URL, url.trim());
+  window.location.reload(); 
 };
 
 export const clearSupabaseConfig = () => {
@@ -51,8 +62,11 @@ export const clearSupabaseConfig = () => {
   window.location.reload();
 };
 
-// Create client (with fallback to avoid crash if key is missing)
-export const supabase = createClient(
-  SUPABASE_URL, 
-  SUPABASE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.placeholder'
-);
+// 6. Criar Cliente
+export const supabase = createClient(finalUrl, finalKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: false
+  }
+});
