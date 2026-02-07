@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ICONS, ROUTES } from '../constants';
@@ -175,31 +174,41 @@ const Clients: React.FC = () => {
     setLoading(true);
     try {
       let finalClientId = editingId;
-      let finalPhotoUrl = clientForm.foto_url;
+      let finalPhotoUrl = clientForm.foto_url || '';
 
       // 1. CREATE: Se for novo cliente
       if (!editingId) {
-          const newClient = await dataService.createClient({
-              ...clientForm,
+          // Robust creation payload to avoid undefined values in Storage
+          const newClientPayload = {
+              nome: clientForm.nome || '',
+              telefone: clientForm.telefone || '',
+              endereco: clientForm.endereco || '',
+              bairro: clientForm.bairro || '',
+              cidade: clientForm.cidade || '',
+              observacoes: clientForm.observacoes || '',
               vendedor_id: session?.id || 'anon',
               // No modo Supabase, salvamos sem foto primeiro para gerar o ID
-              // No modo Offline, já salvamos o Base64
-              foto_url: isSupabaseConfigured ? '' : clientForm.foto_url 
-          } as Omit<Client, 'id'>);
+              // No modo Offline, já salvamos o Base64 aqui (pois isSupabaseConfigured será false)
+              foto_url: isSupabaseConfigured ? '' : finalPhotoUrl,
+              is_mumbuca: clientForm.is_mumbuca || false
+          };
+
+          const newClient = await dataService.createClient(newClientPayload);
           finalClientId = newClient.id;
       }
 
-      // 2. UPLOAD: Se tiver arquivo e tivermos o ID (seja novo ou edição)
-      if (selectedFile && finalClientId) {
+      // 2. UPLOAD: Se tiver arquivo e tivermos o ID e estivermos Online
+      if (selectedFile && finalClientId && isSupabaseConfigured) {
           const publicUrl = await dataService.uploadClientPhoto(selectedFile, finalClientId);
           if (publicUrl) {
-              finalPhotoUrl = publicUrl; // Sucesso no upload (Supabase)
+              finalPhotoUrl = publicUrl; 
           }
-          // Se publicUrl for null (Offline ou Erro), finalPhotoUrl mantém o Base64 do formulário
       }
 
-      // 3. UPDATE: Atualiza o registro (para salvar a URL da foto ou o Base64 e os textos)
-      if (finalClientId) {
+      // 3. UPDATE: Se for edição OU se for novo cliente Online (para salvar a URL da foto)
+      const shouldUpdate = editingId || (isSupabaseConfigured && selectedFile);
+
+      if (finalClientId && shouldUpdate) {
            const updates = {
                nome: clientForm.nome,
                telefone: clientForm.telefone,
@@ -214,9 +223,9 @@ const Clients: React.FC = () => {
 
       await loadClients();
       setIsModalOpen(false);
-    } catch (error) {
-      console.error(error);
-      alert("Erro ao salvar cliente.");
+    } catch (error: any) {
+      console.error("Save Client Error:", error);
+      alert("Erro ao salvar cliente: " + (error.message || JSON.stringify(error)));
     } finally {
       setLoading(false);
     }
@@ -445,12 +454,12 @@ const Clients: React.FC = () => {
           </div>
 
           <Input 
-            label="Nome Completo" 
+            label="Nome Completo *" 
             value={clientForm.nome || ''} 
             onChange={e => setClientForm({...clientForm, nome: e.target.value})}
           />
           <Input 
-            label="Telefone (WhatsApp)" 
+            label="Telefone (WhatsApp) *" 
             type="tel"
             value={clientForm.telefone || ''} 
             onChange={e => setClientForm({...clientForm, telefone: e.target.value})}

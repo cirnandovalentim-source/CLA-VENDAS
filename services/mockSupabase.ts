@@ -21,16 +21,34 @@ const INITIAL_CLIENTS: Client[] = [
 
 // Local Storage Helpers
 const getStorage = <T>(key: string, initial: T): T => {
-  const stored = localStorage.getItem(`cla_${key}`);
-  if (!stored) {
-    localStorage.setItem(`cla_${key}`, JSON.stringify(initial));
+  try {
+    const stored = localStorage.getItem(`cla_${key}`);
+    if (!stored) {
+      localStorage.setItem(`cla_${key}`, JSON.stringify(initial));
+      return initial;
+    }
+    return JSON.parse(stored);
+  } catch (e) {
+    console.error(`Error getting storage ${key}`, e);
     return initial;
   }
-  return JSON.parse(stored);
 };
 
 const setStorage = <T>(key: string, data: T) => {
-  localStorage.setItem(`cla_${key}`, JSON.stringify(data));
+  try {
+    localStorage.setItem(`cla_${key}`, JSON.stringify(data));
+  } catch (e: any) {
+    // Check for Quota Exceeded
+    if (
+        e.name === 'QuotaExceededError' || 
+        e.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+        (e.code === 22) || (e.code === 1014)
+    ) {
+        alert("⚠️ MEMÓRIA CHEIA!\n\nNão foi possível salvar pois o navegador está sem espaço. Tente:\n1. Excluir clientes antigos\n2. Usar fotos menores\n3. Exportar Backup e limpar dados.");
+    }
+    console.error(`Error setting storage ${key}`, e);
+    throw e;
+  }
 };
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -232,54 +250,40 @@ export const dataService = {
     return getStorage<Client[]>('clients', INITIAL_CLIENTS).find(c => c.id === id);
   },
 
-  // -- STORAGE HANDLER --
   uploadClientPhoto: async (file: File | Blob, clientId: string): Promise<string | null> => {
     if (isSupabaseConfigured) {
-        // Supabase Storage Logic
         try {
-            // Path: clientes/{clientId}.jpg (or original extension)
-            // Using timestamp to bust cache if updating
             const timestamp = Date.now();
             const path = `clientes/${clientId}.jpg`;
             
-            // Upload
             const { error: uploadError } = await supabase.storage
                 .from('clientes-fotos')
                 .upload(path, file, { upsert: true });
 
             if (uploadError) {
-                // Check specifically for missing bucket or RLS errors
                 const errMsg = uploadError.message || (uploadError as any).error || '';
-                const isBucketError = errMsg.includes('Bucket not found') || errMsg.includes('not found') || errMsg.includes('The resource was not found');
+                const isBucketError = errMsg.includes('Bucket not found') || errMsg.includes('not found');
                 const isRlsError = errMsg.includes('row-level security') || errMsg.includes('policy');
 
                 if (isBucketError || isRlsError) {
-                    alert("⚠️ CONFIGURAÇÃO NECESSÁRIA\n\nErro no upload da foto: " + (isRlsError ? "Permissão negada (RLS)." : "Bucket não encontrado.") + "\n\nSOLUÇÃO:\n1. Vá em 'Configurações' > 'Banco de Dados'.\n2. Copie e execute o 'Script de Correção' no Supabase.");
-                    return null; // Return null so we don't block the client text update
-                } else {
-                    console.error("Erro upload:", uploadError);
+                    alert("⚠️ CONFIGURAÇÃO NECESSÁRIA\n\nErro no upload: " + (isRlsError ? "Permissão negada (RLS)." : "Bucket não encontrado.") + "\n\nSOLUÇÃO: Vá em 'Configurações > Banco de Dados' e execute o Script de Correção.");
+                    return null;
                 }
                 throw uploadError;
             }
 
-            // Get Public URL
             const { data: { publicUrl } } = supabase.storage
                 .from('clientes-fotos')
                 .getPublicUrl(path);
             
-            // Append timestamp param to force refresh on frontend
             return `${publicUrl}?t=${timestamp}`;
 
         } catch (e) {
             console.error("Upload Failed", e);
-            // Return null to avoid crashing the save process
             return null;
         }
     } else {
-        // Offline/Mock Logic: Return Base64
-        // In the mock version, the "upload" is just passing back the base64 string
-        // The calling component handles base64 conversion before saving
-        return null; 
+        return null; // Offline mode handles base64 in create/update directly
     }
   },
 

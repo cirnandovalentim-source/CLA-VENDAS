@@ -22,6 +22,7 @@ const storedKey = localStorage.getItem(LS_KEY);
 const storedUrl = localStorage.getItem(LS_URL);
 
 // Use provided URL and Key as default if not in Env or Storage
+// NOTE: These defaults are placeholders to prevent crashes, but should NOT be treated as valid configuration.
 const DEFAULT_URL = 'https://taubsuolhawpdibrhtkb.supabase.co';
 const DEFAULT_KEY = 'sb_publishable_8ZQqb0ErWyz5oP_BWQqECQ_Ospm1Q08';
 
@@ -32,8 +33,10 @@ const SUPABASE_KEY = getEnv('VITE_SUPABASE_KEY') || storedKey || DEFAULT_KEY;
 export const isSupabaseConfigured = 
   SUPABASE_URL && 
   SUPABASE_KEY && 
-  SUPABASE_KEY.length > 30 && // Adjusted length check to support various key formats
-  !SUPABASE_URL.includes('YOUR_PROJECT_ID');
+  SUPABASE_KEY.length > 30 && 
+  !SUPABASE_URL.includes('YOUR_PROJECT_ID') &&
+  SUPABASE_URL !== DEFAULT_URL && // Treat default URL as not configured
+  SUPABASE_KEY !== DEFAULT_KEY;   // Treat default Key as not configured
 
 // Helper to save credentials from UI
 export const configureSupabase = (key: string, url?: string) => {

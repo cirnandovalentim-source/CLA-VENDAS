@@ -34,7 +34,14 @@ const ClientDetails: React.FC = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   // Receipt Modal State
-  const [receiptData, setReceiptData] = useState<{ type: 'SALE' | 'INSTALLMENT', data: any } | null>(null);
+  const [receiptData, setReceiptData] = useState<{ 
+      type: 'SALE' | 'INSTALLMENT', 
+      data: any,
+      totalValue: number,
+      remaining: number,
+      description: string,
+      history: { date: string, paid: number, remaining: number }[]
+  } | null>(null);
 
   // Forms
   const [editForm, setEditForm] = useState({ valor: '', data_vencimento: '' });
@@ -66,6 +73,49 @@ const ClientDetails: React.FC = () => {
       const data = await dataService.getInstallmentsBySale(saleId);
       setInstallmentsMap(prev => ({ ...prev, [saleId]: data }));
     }
+  };
+
+  // --- RECEIPT CALCULATOR ---
+  const openReceipt = (type: 'SALE' | 'INSTALLMENT', dataItem: any, saleId: string, installmentsOverride?: Installment[]) => {
+      const currentSale = sales.find(s => s.id === saleId);
+      const saleInstallments = installmentsOverride || installmentsMap[saleId] || [];
+      
+      if (!currentSale) return;
+
+      // 1. Calculate History of Payments (Sort by Date Paid)
+      const paidInstallments = saleInstallments
+        .filter(i => i.pago)
+        .sort((a, b) => {
+            const dateA = new Date(a.data_pagamento || a.data_vencimento).getTime();
+            const dateB = new Date(b.data_pagamento || b.data_vencimento).getTime();
+            return dateA - dateB;
+        });
+
+      let runningBalance = currentSale.valor_total;
+      const history = paidInstallments.map(inst => {
+          runningBalance -= inst.valor;
+          return {
+              date: inst.data_pagamento || new Date().toISOString(),
+              paid: inst.valor,
+              remaining: Math.max(0, runningBalance)
+          };
+      });
+
+      // 2. Final Remaining Balance
+      const totalPaid = saleInstallments
+        .filter(i => i.pago)
+        .reduce((acc, curr) => acc + curr.valor, 0);
+
+      const remaining = Math.max(0, currentSale.valor_total - totalPaid);
+
+      setReceiptData({
+          type,
+          data: dataItem,
+          totalValue: currentSale.valor_total,
+          remaining: remaining,
+          description: "Produtos Diversos / Kit",
+          history: history
+      });
   };
 
   const handleOpenEditClient = () => {
@@ -148,13 +198,11 @@ const ClientDetails: React.FC = () => {
       try {
           let finalPhotoUrl = clientForm.foto_url;
 
-          // If file selected, try upload
           if (selectedFile) {
               const url = await dataService.uploadClientPhoto(selectedFile, id);
               if (url) {
                   finalPhotoUrl = url;
               }
-              // If url is null (Offline), finalPhotoUrl keeps the Base64 from handlePhotoChange
           }
 
           const { id: _, ...formFields } = clientForm as any;
@@ -234,14 +282,19 @@ const ClientDetails: React.FC = () => {
     try {
       const actualPaid = parseFloat(paymentAmount);
       await dataService.payInstallment(payInstallment.id, session.id, actualPaid);
-      await loadData();
-      const updatedInst = { 
-          ...payInstallment, 
-          pago: true, 
-          data_pagamento: new Date().toISOString(),
-          valor: actualPaid 
-      };
-      setReceiptData({ type: 'INSTALLMENT', data: updatedInst });
+      
+      // Get FRESH installments to generate correct history for receipt immediately
+      const freshInstallments = await dataService.getInstallmentsBySale(payInstallment.venda_id);
+      
+      // Background update of UI
+      loadData(); 
+      
+      const updatedInst = freshInstallments.find(i => i.id === payInstallment.id);
+      
+      if (updatedInst) {
+        openReceipt('INSTALLMENT', updatedInst, payInstallment.venda_id, freshInstallments);
+      }
+      
       setPayInstallment(null);
     } catch (e) {
       console.error(e);
@@ -351,7 +404,7 @@ const ClientDetails: React.FC = () => {
                    {isExpanded && (
                       <div className="bg-gray-50 dark:bg-[#121212] border-t border-gray-200 dark:border-[#333] p-3 space-y-2">
                            <div className="flex justify-between px-1 pb-2 gap-2 flex-wrap">
-                                <button onClick={(e) => { e.stopPropagation(); setReceiptData({ type: 'SALE', data: sale }); }} className="text-xs text-blue-500 dark:text-blue-400 flex items-center gap-1 hover:underline">
+                                <button onClick={(e) => { e.stopPropagation(); openReceipt('SALE', sale, sale.id); }} className="text-xs text-blue-500 dark:text-blue-400 flex items-center gap-1 hover:underline">
                                     {ICONS.Printer} Recibo
                                 </button>
                                 {!isReturned && (
@@ -379,7 +432,7 @@ const ClientDetails: React.FC = () => {
                                        R$ {inst.valor.toFixed(2)}
                                     </span>
                                     {inst.pago ? (
-                                        <button onClick={() => setReceiptData({ type: 'INSTALLMENT', data: inst })} className="p-1.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg">
+                                        <button onClick={() => openReceipt('INSTALLMENT', inst, inst.venda_id)} className="p-1.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg">
                                             {ICONS.Printer}
                                         </button>
                                     ) : !isReturned && (
@@ -449,7 +502,7 @@ const ClientDetails: React.FC = () => {
         </div>
       </Modal>
 
-      {/* Edit Installment, Pay, Return, Delete Modals (Same as before) */}
+      {/* Edit Installment, Pay, Return, Delete Modals */}
       <Modal isOpen={!!editInstallment} onClose={() => setEditInstallment(null)} title="Editar Parcela">
         <div className="space-y-4">
            <Input label="Valor" type="number" value={editForm.valor} onChange={(e) => setEditForm(prev => ({ ...prev, valor: e.target.value }))} />
@@ -489,7 +542,19 @@ const ClientDetails: React.FC = () => {
          </div>
       </Modal>
 
-      {receiptData && <ReceiptModal isOpen={!!receiptData} onClose={() => setReceiptData(null)} type={receiptData.type} data={receiptData.data} client={client} />}
+      {receiptData && (
+          <ReceiptModal 
+            isOpen={!!receiptData} 
+            onClose={() => setReceiptData(null)} 
+            type={receiptData.type} 
+            data={receiptData.data} 
+            client={client} 
+            totalValue={receiptData.totalValue}
+            remaining={receiptData.remaining}
+            description={receiptData.description}
+            history={receiptData.history}
+          />
+      )}
     </div>
   );
 };

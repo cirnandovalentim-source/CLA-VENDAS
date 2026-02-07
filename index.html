@@ -54,6 +54,7 @@
             },
             fontFamily: {
               sans: ['Inter', 'Roboto', 'sans-serif'],
+              handwriting: ['Caveat', 'cursive'],
             },
             keyframes: {
               'fade-in': {
@@ -152,10 +153,22 @@
       @media print {
         body * { visibility: hidden; }
         #receipt-content, #receipt-content * { visibility: visible; }
-        #receipt-content { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 0; background-color: white !important; color: black !important; }
+        #receipt-content { 
+            position: absolute; 
+            left: 0; 
+            top: 0; 
+            width: 100%; 
+            margin: 0; 
+            padding: 0; 
+            background-color: white !important; 
+            color: black !important; 
+            border: none !important;
+        }
+        /* Ensure inputs look like text */
+        input { border: none; background: transparent; }
       }
     </style>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Caveat:wght@400;700&display=swap" rel="stylesheet">
     
     <!-- IMPORT MAP: FIXED with 'bundle' to prevent load errors -->
     <script type="importmap">

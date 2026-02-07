@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Modal, Button } from './ui';
-import { Client, Sale, Installment } from '../types';
+import { Client } from '../types';
 import { format } from 'date-fns';
 import { ICONS } from '../constants';
 
@@ -9,11 +9,17 @@ interface ReceiptModalProps {
   isOpen: boolean;
   onClose: () => void;
   type: 'SALE' | 'INSTALLMENT';
-  data: any; // Sale or Installment
+  data: any; 
   client: Client;
+  totalValue?: number;
+  remaining?: number;
+  description?: string;
+  history?: { date: string, paid: number, remaining: number }[];
 }
 
-export const ReceiptModal: React.FC<ReceiptModalProps> = ({ isOpen, onClose, type, data, client }) => {
+export const ReceiptModal: React.FC<ReceiptModalProps> = ({ 
+    isOpen, onClose, type, data, client, totalValue, remaining, description, history 
+}) => {
   if (!isOpen || !data) return null;
 
   const handlePrint = () => {
@@ -21,31 +27,25 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ isOpen, onClose, typ
   };
 
   const handleShareWhatsapp = () => {
-    const br = "%0A"; // Quebra de linha para URL
-    let message = "";
-
+    const br = "%0A";
+    let message = `🧾 *RECIBO CLA VENDAS*${br}${br}`;
+    
+    message += `*Cliente:* ${client.nome}${br}`;
+    
     if (type === 'SALE') {
-        message = `🛍️ *COMPROVANTE DE VENDA*${br}*CLA VENDAS*${br}${br}`;
-        message += `*Cliente:* ${client.nome}${br}`;
-        message += `*Data:* ${format(new Date(data.data_venda), 'dd/MM/yyyy')}${br}`;
-        message += `*Cód Venda:* #${data.id.substring(0, 6)}${br}`;
+        message += `*Data da Venda:* ${format(new Date(data.data_venda), 'dd/MM/yyyy')}${br}`;
+        message += `*Produto:* ${description || 'Produtos Diversos'}${br}`;
         message += `*Total:* R$ ${data.valor_total.toFixed(2)}${br}`;
-        message += `*Plano:* ${data.qtd_parcelas}x${br}`;
+        message += `*Plano:* ${data.qtd_parcelas} parcelas${br}`;
     } else {
-        message = `🧾 *COMPROVANTE DE PAGAMENTO*${br}*CLA VENDAS*${br}${br}`;
-        message += `*Cliente:* ${client.nome}${br}`;
-        message += `*Parcela:* ${data.numero_parcela}${br}`;
+        message += `*Ref. Parcela:* ${data.numero_parcela}${br}`;
         message += `*Vencimento:* ${format(new Date(data.data_vencimento), 'dd/MM/yyyy')}${br}`;
-        message += `*Pagamento:* ${data.data_pagamento ? format(new Date(data.data_pagamento), 'dd/MM/yyyy') : format(new Date(), 'dd/MM/yyyy')}${br}`;
-        message += `*VALOR PAGO:* R$ ${data.valor.toFixed(2)}${br}`;
+        message += `*Valor Pago:* R$ ${data.valor.toFixed(2)}${br}`;
+        message += `*Resta a Pagar:* R$ ${(remaining || 0).toFixed(2)}${br}`;
+        message += `*Data Pagamento:* ${format(new Date(), 'dd/MM/yyyy')}${br}`;
     }
 
-    message += `${br}_Obrigado pela preferência!_`;
-
-    // Remove caracteres não numéricos do telefone
     const phone = client.telefone ? client.telefone.replace(/\D/g, '') : '';
-    
-    // Se tiver telefone, abre direto no número, senão abre para escolher contato
     const whatsappUrl = phone 
         ? `https://wa.me/55${phone}?text=${message}`
         : `https://wa.me/?text=${message}`;
@@ -53,89 +53,208 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ isOpen, onClose, typ
     window.open(whatsappUrl, '_blank');
   };
 
-  const today = new Date();
+  // --- Helpers for the "Paper" Layout ---
+  const Handwriting: React.FC<{ children: React.ReactNode, className?: string }> = ({ children, className }) => (
+    <span className={`font-handwriting text-[#1e3a8a] text-xl font-bold ml-2 -mb-1 block relative top-[-4px] ${className}`}>
+        {children}
+    </span>
+  );
+
+  const saleDate = type === 'SALE' ? new Date(data.data_venda) : new Date(data.data_vencimento);
+  
+  // "Preço" in top table is always the Total Value of the Sale (product kit value)
+  const displayTotalValue = totalValue || (type === 'SALE' ? data.valor_total : data.valor);
+
+  // Grid Logic
+  const gridRows = [1, 2, 3, 4];
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Visualizar Recibo">
       <div className="flex flex-col gap-4">
         
-        {/* Receipt Container - This ID is used by the @media print CSS */}
-        <div id="receipt-content" className="bg-white text-black p-6 rounded-lg shadow-inner font-mono text-sm border-t-8 border-[#FF7A00]">
+        {/* === RECEIPT CONTAINER (The "Paper") === */}
+        <div id="receipt-content" className="bg-white text-black p-4 font-sans text-xs border-2 border-black max-w-[400px] mx-auto w-full relative">
            
-           {/* Header */}
-           <div className="text-center border-b-2 border-dashed border-gray-300 pb-4 mb-4">
-             <h2 className="text-xl font-bold uppercase tracking-wider">CLA VENDAS</h2>
-             <p className="text-xs text-gray-500">Comprovante de {type === 'SALE' ? 'Venda' : 'Pagamento'}</p>
-             <p className="text-xs text-gray-400 mt-1">{format(today, 'dd/MM/yyyy HH:mm')}</p>
+           {/* HEADER */}
+           <div className="flex justify-between items-start border-b-2 border-black pb-2 mb-2">
+              <div className="flex gap-2">
+                 <div className="flex flex-col justify-center items-center">
+                    {/* Logo Simulation */}
+                    <div className="border-2 border-black rounded-full w-10 h-10 flex items-center justify-center mb-1">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                    </div>
+                    <span className="font-black text-2xl leading-none">CLA</span>
+                 </div>
+                 <div className="flex flex-col justify-center">
+                    <p className="font-bold text-[10px] leading-tight w-24">ALIMENTAÇÃO E UTILIDADES</p>
+                    <p className="font-bold text-xs mt-1">21 96719-0243 {ICONS.Phone}</p>
+                 </div>
+              </div>
+              
+              {/* Note in top right */}
+              {type === 'SALE' && (
+                  <div className="absolute top-2 left-1/2 -translate-x-1/2 font-handwriting text-[#1e3a8a] text-xl rotate-[-5deg]">
+                      {data.qtd_parcelas}x {(data.valor_total / data.qtd_parcelas).toFixed(0)}
+                  </div>
+              )}
+
+              {/* QR Code Area */}
+              <div className="border border-black p-1 w-16 h-16 flex flex-col items-center justify-center">
+                 <div className="w-12 h-12 bg-black/10 flex items-center justify-center">
+                     <div className="w-full h-full grid grid-cols-4 gap-0.5 p-0.5">
+                         {[...Array(16)].map((_,i) => <div key={i} className={`bg-black ${Math.random() > 0.5 ? 'opacity-100' : 'opacity-0'}`}></div>)}
+                     </div>
+                 </div>
+                 <p className="text-[5px] text-center mt-0.5 uppercase font-bold leading-none">Pague com QR Code</p>
+              </div>
            </div>
 
-           {/* Content */}
-           <div className="space-y-4 mb-6">
-             
-             {/* Client Info */}
-             <div>
-                <p className="font-bold text-xs uppercase text-gray-500">Cliente</p>
-                <p className="font-bold text-lg">{client.nome}</p>
-                <p className="text-xs">{client.telefone}</p>
-             </div>
-
-             {type === 'INSTALLMENT' && (
-                <div className="bg-gray-100 p-3 rounded border border-gray-200">
-                    <div className="flex justify-between items-center mb-2">
-                        <span className="text-gray-600">Parcela</span>
-                        <span className="font-bold">{data.numero_parcela}</span>
-                    </div>
-                    <div className="flex justify-between items-center mb-2">
-                        <span className="text-gray-600">Vencimento</span>
-                        <span>{format(new Date(data.data_vencimento), 'dd/MM/yyyy')}</span>
-                    </div>
-                    <div className="flex justify-between items-center mb-2">
-                        <span className="text-gray-600">Data Pagamento</span>
-                        <span>{data.data_pagamento ? format(new Date(data.data_pagamento), 'dd/MM/yyyy') : 'Hoje'}</span>
-                    </div>
-                    <div className="border-t border-gray-300 my-2"></div>
-                    <div className="flex justify-between items-center text-lg">
-                        <span className="font-bold">VALOR PAGO</span>
-                        <span className="font-bold">R$ {data.valor.toFixed(2)}</span>
-                    </div>
-                </div>
-             )}
-
-             {type === 'SALE' && (
-                <div className="bg-gray-100 p-3 rounded border border-gray-200">
-                    <div className="flex justify-between items-center mb-2">
-                        <span className="text-gray-600">Código Venda</span>
-                        <span className="font-bold">#{data.id.substring(0, 6)}</span>
-                    </div>
-                    <div className="flex justify-between items-center mb-2">
-                        <span className="text-gray-600">Data Venda</span>
-                        <span>{format(new Date(data.data_venda), 'dd/MM/yyyy')}</span>
-                    </div>
-                    <div className="flex justify-between items-center mb-2">
-                        <span className="text-gray-600">Plano</span>
-                        <span>{data.qtd_parcelas}x Parcelas</span>
-                    </div>
-                    <div className="border-t border-gray-300 my-2"></div>
-                    <div className="flex justify-between items-center text-lg">
-                        <span className="font-bold">TOTAL VENDA</span>
-                        <span className="font-bold">R$ {data.valor_total.toFixed(2)}</span>
-                    </div>
-                </div>
-             )}
-
-             <div className="text-center pt-8">
-                 <div className="border-t border-black w-3/4 mx-auto mb-2"></div>
-                 <p className="text-xs uppercase">Assinatura / Responsável</p>
-             </div>
+           {/* CLIENT INFO */}
+           <div className="space-y-1 mb-2">
+              <div className="flex items-end">
+                  <span className="font-bold uppercase whitespace-nowrap">Nome do Cliente</span>
+                  <div className="border-b border-black w-full ml-1">
+                      <Handwriting>{client.nome}</Handwriting>
+                  </div>
+              </div>
+              <div className="flex items-end">
+                  <span className="font-bold uppercase whitespace-nowrap">Endereço</span>
+                  <div className="border-b border-black w-full ml-1">
+                      <Handwriting className="text-lg">{client.endereco}</Handwriting>
+                  </div>
+              </div>
+              <div className="flex items-end">
+                  <span className="font-bold uppercase whitespace-nowrap">Bairro</span>
+                  <div className="border-b border-black w-full ml-1">
+                      <Handwriting>{client.bairro}</Handwriting>
+                  </div>
+              </div>
+              <div className="flex items-end">
+                  <span className="font-bold uppercase whitespace-nowrap">Telefone</span>
+                  <div className="border-b border-black w-full ml-1">
+                      <Handwriting>{client.telefone}</Handwriting>
+                  </div>
+              </div>
            </div>
 
-           {/* Footer */}
-           <div className="text-center text-xs text-gray-400 border-t-2 border-dashed border-gray-300 pt-4">
-              <p>Obrigado pela preferência!</p>
-              <p>Documento sem valor fiscal.</p>
+           {/* DATE & TOTAL */}
+           <div className="flex gap-2 mb-2">
+               <div className="flex items-end w-1/2">
+                  <span className="font-bold uppercase mr-1">Data</span>
+                  <div className="border-b border-black flex-1 text-center">
+                      <Handwriting className="justify-center flex">
+                          {format(saleDate, 'dd')} / {format(saleDate, 'MM')} / {format(saleDate, 'yy')}
+                      </Handwriting>
+                  </div>
+               </div>
+               <div className="border border-black w-1/2 flex flex-col p-1 relative">
+                  <span className="text-[8px] font-bold uppercase absolute top-0 left-1 leading-none">Total Comprado</span>
+                  <div className="flex-1 flex items-center justify-end">
+                      <Handwriting className="text-2xl mr-2">
+                          R$ {displayTotalValue.toFixed(2)}
+                      </Handwriting>
+                  </div>
+               </div>
+           </div>
+
+           {/* PRODUCT TABLE */}
+           <div className="border-t-2 border-b-2 border-black mb-2">
+               <div className="flex border-b border-black text-[9px] font-bold uppercase">
+                   <div className="w-[60%] border-r border-black pl-1">Descrição do Produto</div>
+                   <div className="w-[15%] border-r border-black text-center">Quant</div>
+                   <div className="w-[25%] text-center">Preço</div>
+               </div>
+               {/* Line 1 - Filled */}
+               <div className="flex h-8 border-b border-black relative">
+                   <div className="w-[60%] border-r border-black pl-1 relative">
+                       <Handwriting className="absolute top-0 leading-tight pt-1">
+                           {description || (type === 'SALE' ? 'Produtos Diversos' : `Pagamento Parcela ${data.numero_parcela}`)}
+                       </Handwriting>
+                   </div>
+                   <div className="w-[15%] border-r border-black text-center relative">
+                       <Handwriting className="absolute top-0 left-1/2 -translate-x-1/2">1</Handwriting>
+                   </div>
+                   <div className="w-[25%] text-center relative">
+                       <Handwriting className="absolute top-0 right-2">
+                           {displayTotalValue.toFixed(2)}
+                       </Handwriting>
+                   </div>
+               </div>
+               {/* Line 2 - Empty */}
+               <div className="flex h-6">
+                   <div className="w-[60%] border-r border-black"></div>
+                   <div className="w-[15%] border-r border-black"></div>
+                   <div className="w-[25%]"></div>
+               </div>
+           </div>
+
+           {/* PAYMENT GRID */}
+           <div className="border-2 border-black mb-2">
+               <div className="flex border-b border-black bg-gray-100 text-[10px] font-bold uppercase">
+                   <div className="w-1/3 border-r border-black text-center py-0.5">Data</div>
+                   <div className="w-1/3 border-r border-black text-center py-0.5">Pagou</div>
+                   <div className="w-1/3 text-center py-0.5">Resta</div>
+               </div>
+               {gridRows.map((_, idx) => {
+                   let dateText = '';
+                   let paidText = '';
+                   let remainingText = '';
+                   
+                   // Priority: Use passed History array if available
+                   if (history && history[idx]) {
+                       dateText = format(new Date(history[idx].date), 'dd/MM');
+                       paidText = history[idx].paid.toFixed(2);
+                       remainingText = history[idx].remaining.toFixed(2);
+                   }
+                   // Fallback: If no history but viewing single installment payment (only for 1st row)
+                   else if (type === 'INSTALLMENT' && idx === 0 && !history) {
+                        dateText = format(new Date(data.data_pagamento || new Date()), 'dd/MM');
+                        paidText = data.valor.toFixed(2);
+                        if (remaining !== undefined) {
+                            remainingText = remaining.toFixed(2);
+                        }
+                   }
+
+                   return (
+                       <div key={idx} className="flex h-7 border-b border-black last:border-b-0">
+                           <div className="w-1/3 border-r border-black relative">
+                               {dateText && <Handwriting className="ml-4">{dateText}</Handwriting>}
+                           </div>
+                           <div className="w-1/3 border-r border-black relative">
+                               {paidText && <Handwriting className="ml-4">{paidText}</Handwriting>}
+                           </div>
+                           <div className="w-1/3 relative">
+                               {remainingText && <Handwriting className="ml-4">{remainingText}</Handwriting>}
+                           </div>
+                       </div>
+                   );
+               })}
+           </div>
+
+           {/* FOOTER */}
+           <div className="flex items-center gap-2 mb-2 text-[10px] font-bold">
+              <span>OPÇÃO PAGAMENTO</span>
+              <div className="flex items-center gap-1">
+                  <div className="w-3 h-3 border border-black flex items-center justify-center">
+                     {type === 'SALE' && data.qtd_parcelas > 1 && <div className="w-2 h-2 bg-black"></div>}
+                     {type === 'INSTALLMENT' && <div className="w-2 h-2 bg-black"></div>}
+                  </div>
+                  <span>PARCELADO</span>
+              </div>
+              <div className="flex items-center gap-1">
+                  <div className="w-3 h-3 border border-black flex items-center justify-center">
+                     {type === 'SALE' && data.qtd_parcelas === 1 && <div className="w-2 h-2 bg-black"></div>}
+                  </div>
+                  <span>À VISTA</span>
+              </div>
+           </div>
+
+           <div className="border border-black p-1 text-center font-bold text-[10px]">
+               CHAVES PIX: 57453624304 - 21967190243
            </div>
         </div>
 
+        {/* ACTIONS */}
         <div className="flex gap-2 pt-2">
              <Button 
                 variant="secondary" 
@@ -150,7 +269,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ isOpen, onClose, typ
                 icon={ICONS.Share} 
                 className="flex-[2] bg-green-600 hover:bg-green-700 border-none shadow-lg shadow-green-600/20"
              >
-                Enviar no WhatsApp
+                WhatsApp
              </Button>
         </div>
       </div>
