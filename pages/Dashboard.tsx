@@ -143,7 +143,7 @@ const Dashboard: React.FC = () => {
                    onClick={() => navigate(ROUTES.PAYMENTS)}
                    className="bg-[#0038A8] dark:bg-[#FF7A00] text-white py-3 px-4 rounded-xl font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-blue-900/10"
                 >
-                   {ICONS.Payments} Receber / Caixa
+                   {ICONS.Payments} Receber
                 </button>
                 <button 
                    onClick={() => navigate(ROUTES.CLIENTS)}
@@ -162,10 +162,10 @@ const Dashboard: React.FC = () => {
                         {ICONS.Product} Produtos
                      </button>
                      <button 
-                        onClick={() => navigate(ROUTES.SETTINGS)}
+                        onClick={() => navigate(ROUTES.SELLERS)}
                         className="bg-gray-50 dark:bg-[#252525] text-gray-600 dark:text-gray-400 py-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2"
                      >
-                        {ICONS.Settings} Ajustes
+                        {ICONS.Sellers} Equipe
                      </button>
                   </>
                 )}
@@ -209,7 +209,7 @@ const Dashboard: React.FC = () => {
                </div>
                <div>
                   <p className="font-bold text-sm text-gray-900 dark:text-white">Segurança de Dados</p>
-                  <p className="text-xs text-gray-500">Backup e proteção</p>
+                  <p className="text-xs text-gray-500">Backup e Ajustes</p>
                </div>
             </div>
             <div className="text-gray-400">{ICONS.Right}</div>

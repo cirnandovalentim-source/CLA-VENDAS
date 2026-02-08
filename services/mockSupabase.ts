@@ -222,6 +222,60 @@ const getSellers = async (): Promise<User[]> => {
     return users;
 };
 
+// NEW FUNCTION: Calculate Seller Performance
+const getSellersPerformance = async (startDate: Date, endDate: Date): Promise<{ sellerId: string, totalSales: number, salesCount: number }[]> => {
+    const startIso = startOfDay(startDate).toISOString();
+    const endIso = endOfDay(endDate).toISOString();
+
+    if (isSupabaseConfigured) {
+        const { data: sales, error } = await supabase
+            .from('sales')
+            .select('vendedor_id, valor_total')
+            .gte('data_venda', startIso)
+            .lte('data_venda', endIso);
+
+        if (error) {
+            handleSupabaseError(error);
+            return [];
+        }
+
+        // Aggregate by Seller
+        const map: Record<string, { total: number, count: number }> = {};
+        sales?.forEach((s: any) => {
+            if (!map[s.vendedor_id]) map[s.vendedor_id] = { total: 0, count: 0 };
+            map[s.vendedor_id].total += s.valor_total;
+            map[s.vendedor_id].count += 1;
+        });
+
+        return Object.keys(map).map(id => ({
+            sellerId: id,
+            totalSales: map[id].total,
+            salesCount: map[id].count
+        }));
+    }
+
+    // Mock Implementation
+    await delay(300);
+    const sales = getStorage<Sale[]>('sales', []);
+    const filtered = sales.filter(s => {
+        const d = new Date(s.data_venda);
+        return d >= startDate && d <= endDate;
+    });
+
+    const map: Record<string, { total: number, count: number }> = {};
+    filtered.forEach(s => {
+        if (!map[s.vendedor_id]) map[s.vendedor_id] = { total: 0, count: 0 };
+        map[s.vendedor_id].total += s.valor_total;
+        map[s.vendedor_id].count += 1;
+    });
+
+    return Object.keys(map).map(id => ({
+        sellerId: id,
+        totalSales: map[id].total,
+        salesCount: map[id].count
+    }));
+};
+
 const createSeller = async (userData: Omit<User, 'id'>): Promise<void> => {
     // Only admins usually create sellers, but handled here just in case
     if (isSupabaseConfigured) {
@@ -1020,6 +1074,7 @@ const importBackupData = async (jsonData: string): Promise<void> => {
 // 2. Export Object (Safe Construction)
 export const dataService = {
   getSellers,
+  getSellersPerformance,
   createSeller,
   updateSeller,
   deleteSeller,
