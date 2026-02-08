@@ -907,6 +907,8 @@ const getDashboardStats = async () => {
               }
 
               const salesIds = sales?.map(s => s.id) || [];
+              const totalVendido = sales?.reduce((acc, curr) => acc + curr.valor_total, 0) || 0;
+
               if (salesIds.length === 0) return { totalVendido: 0, totalRecebido: 0, totalReceber: 0, inadimplencia: 0 };
               
               const { data: paidInst } = await supabase.from('installments').select('valor').in('venda_id', salesIds).eq('pago', true);
@@ -915,7 +917,7 @@ const getDashboardStats = async () => {
               const { data: overdueInst } = await supabase.from('installments').select('valor').in('venda_id', salesIds).eq('pago', false).lt('data_vencimento', today);
               
               return {
-                 totalVendido: sales?.reduce((acc, curr) => acc + curr.valor_total, 0) || 0,
+                 totalVendido,
                  totalRecebido: paidInst?.reduce((acc, curr) => acc + curr.valor, 0) || 0,
                  totalReceber: openInst?.reduce((acc, curr) => acc + curr.valor, 0) || 0,
                  inadimplencia: overdueInst?.reduce((acc, curr) => acc + curr.valor, 0) || 0

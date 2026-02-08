@@ -3,12 +3,13 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ICONS } from '../constants';
 import { Button, Input, Card, Modal } from '../components/ui';
-import { dataService } from '../services/mockSupabase';
+import { dataService, authService } from '../services/mockSupabase';
 import { Product } from '../types';
 
 const Products: React.FC = () => {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const session = authService.getSession();
 
   const [products, setProducts] = useState<Product[]>([]);
   const [search, setSearch] = useState('');
@@ -30,6 +31,8 @@ const Products: React.FC = () => {
   });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const isAdmin = session?.perfil === 'admin';
 
   const loadProducts = async () => {
     const data = await dataService.getProducts();
@@ -210,9 +213,11 @@ const Products: React.FC = () => {
 
       <div className="p-4 space-y-4 flex-1 overflow-y-auto custom-scrollbar">
         <div className="flex gap-2">
-            <Button onClick={() => setIsImportModalOpen(true)} variant="secondary" className="px-3" title="Importar Produtos">
-               {ICONS.Upload}
-            </Button>
+            {isAdmin && (
+                <Button onClick={() => setIsImportModalOpen(true)} variant="secondary" className="px-3" title="Importar Produtos">
+                   {ICONS.Upload}
+                </Button>
+            )}
             <Button onClick={handleOpenCreate} fullWidth icon={ICONS.Product}>
               Novo Produto
             </Button>
@@ -251,20 +256,22 @@ const Products: React.FC = () => {
                  </div>
               </div>
               
-              <div className="flex gap-2 pt-3 mt-2 border-t border-gray-100 dark:border-white/5">
-                <button 
-                  onClick={(e) => handleOpenEdit(product, e)}
-                  className="flex-1 py-2 bg-gray-50 dark:bg-white/5 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 flex justify-center items-center gap-2 text-sm font-medium"
-                >
-                    {ICONS.Edit} Editar
-                </button>
-                <button 
-                  onClick={(e) => handleOpenDelete(product.id, e)}
-                  className="flex-1 py-2 bg-red-50 dark:bg-red-500/10 text-red-500 rounded-lg hover:bg-red-100 dark:hover:bg-red-500/20 flex justify-center items-center gap-2 text-sm font-medium"
-                >
-                    {ICONS.Trash} Excluir
-                </button>
-              </div>
+              {isAdmin && (
+                  <div className="flex gap-2 pt-3 mt-2 border-t border-gray-100 dark:border-white/5">
+                    <button 
+                      onClick={(e) => handleOpenEdit(product, e)}
+                      className="flex-1 py-2 bg-gray-50 dark:bg-white/5 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 flex justify-center items-center gap-2 text-sm font-medium"
+                    >
+                        {ICONS.Edit} Editar
+                    </button>
+                    <button 
+                      onClick={(e) => handleOpenDelete(product.id, e)}
+                      className="flex-1 py-2 bg-red-50 dark:bg-red-500/10 text-red-500 rounded-lg hover:bg-red-100 dark:hover:bg-red-500/20 flex justify-center items-center gap-2 text-sm font-medium"
+                    >
+                        {ICONS.Trash} Excluir
+                    </button>
+                  </div>
+              )}
             </Card>
           ))}
           {filteredProducts.length === 0 && (

@@ -37,6 +37,10 @@ const Dashboard: React.FC = () => {
 
   // Logic to show notification only if there is overdue debt
   const hasNotifications = stats.inadimplencia > 0;
+  
+  // Logic specifically for Sellers
+  const isSeller = user?.perfil !== 'admin';
+  const commissionValue = isSeller ? (stats.totalVendido * (user?.comissao_porcentagem || 0)) / 100 : 0;
 
   return (
     <div className="animate-fade-in relative bg-[#F3F4F6] dark:bg-[#121212] min-h-screen pb-24">
@@ -76,28 +80,41 @@ const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* 2. MAIN CARD (Floating) - Like the "TUBARÃO" card in screenshot */}
+      {/* 2. MAIN CARD (Floating) */}
       <div className="px-5 -mt-16 relative z-10">
          <div className="bg-white dark:bg-[#1E1E1E] rounded-[28px] p-6 shadow-xl border border-white/50 dark:border-[#333]">
             <div className="flex justify-between items-start mb-6">
                <div className="flex flex-col">
-                  <span className="text-gray-900 dark:text-white font-black text-lg tracking-wide uppercase">VENDAS</span>
-                  <span className="text-xs text-gray-400 font-medium">Resumo Mensal</span>
+                  {isSeller ? (
+                      <>
+                        <span className="text-gray-900 dark:text-white font-black text-lg tracking-wide uppercase">SUA COMISSÃO</span>
+                        <span className="text-xs text-gray-400 font-medium">Acumulada ({user?.comissao_porcentagem || 0}%)</span>
+                      </>
+                  ) : (
+                      <>
+                        <span className="text-gray-900 dark:text-white font-black text-lg tracking-wide uppercase">VENDAS</span>
+                        <span className="text-xs text-gray-400 font-medium">Total Loja</span>
+                      </>
+                  )}
                </div>
                <span className="text-gray-900 dark:text-white font-bold italic opacity-30 text-xl">CLA</span>
             </div>
 
             <div className="flex justify-between items-end">
                <div>
-                  <p className="text-gray-500 dark:text-gray-400 text-xs font-bold mb-1">TOTAL VENDIDO</p>
+                  <p className="text-gray-500 dark:text-gray-400 text-xs font-bold mb-1">
+                      {isSeller ? 'VALOR A RECEBER' : 'TOTAL VENDIDO'}
+                  </p>
                   <h2 className="text-3xl font-black text-[#0038A8] dark:text-[#FF7A00] tracking-tight">
-                     {formatCurrency(stats.totalVendido)}
+                     {isSeller ? formatCurrency(commissionValue) : formatCurrency(stats.totalVendido)}
                   </h2>
                </div>
                <div className="text-right">
-                   <p className="text-gray-400 text-[10px] font-bold uppercase mb-0.5">Disponível / Receber</p>
+                   <p className="text-gray-400 text-[10px] font-bold uppercase mb-0.5">
+                       {isSeller ? 'Suas Vendas' : 'Disponível / Receber'}
+                   </p>
                    <p className="text-gray-900 dark:text-white font-bold text-lg">
-                      {formatCurrency(stats.totalReceber)}
+                      {isSeller ? formatCurrency(stats.totalVendido) : formatCurrency(stats.totalReceber)}
                    </p>
                </div>
             </div>
@@ -116,12 +133,14 @@ const Dashboard: React.FC = () => {
                >
                   {ICONS.Add} Nova Venda
                </button>
-               <button 
-                  onClick={() => navigate(ROUTES.REPORTS)}
-                  className="flex-1 bg-gray-50 dark:bg-[#2A2A2A] text-gray-700 dark:text-gray-300 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-gray-100 transition-colors"
-               >
-                  ... Relatórios
-               </button>
+               {!isSeller && (
+                   <button 
+                      onClick={() => navigate(ROUTES.REPORTS)}
+                      className="flex-1 bg-gray-50 dark:bg-[#2A2A2A] text-gray-700 dark:text-gray-300 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-gray-100 transition-colors"
+                   >
+                      ... Relatórios
+                   </button>
+               )}
             </div>
          </div>
       </div>

@@ -61,6 +61,8 @@ const Clients: React.FC = () => {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [importStatus, setImportStatus] = useState('');
 
+  const isAdmin = session?.perfil === 'admin';
+
   const loadClients = async () => {
     const data = await dataService.getClients();
     setClients(data);
@@ -339,9 +341,11 @@ const Clients: React.FC = () => {
       <div className="flex justify-between items-center mb-2">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Clientes</h1>
         <div className="flex gap-2">
-            <Button onClick={() => setIsImportModalOpen(true)} variant="secondary" className="!px-3 !py-2" title="Importar Planilha">
-               {ICONS.Upload}
-            </Button>
+            {isAdmin && (
+                <Button onClick={() => setIsImportModalOpen(true)} variant="secondary" className="!px-3 !py-2" title="Importar Planilha">
+                   {ICONS.Upload}
+                </Button>
+            )}
             <Button onClick={handleOpenCreate} className="!px-3 !py-2">
                {ICONS.Add}
             </Button>
@@ -404,18 +408,24 @@ const Clients: React.FC = () => {
               >
                 {ICONS.Phone}
               </button>
-              <button 
-                onClick={(e) => handleOpenEdit(client, e)}
-                className="p-2 bg-gray-200 dark:bg-[#333] text-gray-600 dark:text-gray-400 rounded-lg hover:bg-gray-300 dark:hover:bg-[#404040] z-10"
-              >
-                {ICONS.Edit}
-              </button>
-              <button 
-                onClick={(e) => handleOpenDelete(client.id, e)}
-                className="p-2 bg-red-500/10 text-red-500 rounded-lg hover:bg-red-500/20 z-10"
-              >
-                {ICONS.Trash}
-              </button>
+              
+              {/* RESTRICTED ACTIONS */}
+              {isAdmin && (
+                  <>
+                      <button 
+                        onClick={(e) => handleOpenEdit(client, e)}
+                        className="p-2 bg-gray-200 dark:bg-[#333] text-gray-600 dark:text-gray-400 rounded-lg hover:bg-gray-300 dark:hover:bg-[#404040] z-10"
+                      >
+                        {ICONS.Edit}
+                      </button>
+                      <button 
+                        onClick={(e) => handleOpenDelete(client.id, e)}
+                        className="p-2 bg-red-500/10 text-red-500 rounded-lg hover:bg-red-500/20 z-10"
+                      >
+                        {ICONS.Trash}
+                      </button>
+                  </>
+              )}
             </div>
             <div className="absolute right-4 top-4 text-gray-400 dark:text-gray-500">{ICONS.Right}</div>
           </Card>

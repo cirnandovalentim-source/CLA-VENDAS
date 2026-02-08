@@ -26,6 +26,7 @@ const Sellers: React.FC = () => {
   const [form, setForm] = useState<Partial<User>>({
     nome: '',
     email: '',
+    perfil: 'vendedor',
     comissao_porcentagem: 0
   });
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -69,7 +70,7 @@ const Sellers: React.FC = () => {
   // --- CRUD HANDLERS ---
   const handleOpenCreate = () => {
     setEditingId(null);
-    setForm({ nome: '', email: '', comissao_porcentagem: 0 });
+    setForm({ nome: '', email: '', perfil: 'vendedor', comissao_porcentagem: 0 });
     setIsModalOpen(true);
   };
 
@@ -90,16 +91,16 @@ const Sellers: React.FC = () => {
     try {
       if (editingId) {
         await dataService.updateSeller(editingId, form);
-        showToast('Vendedor atualizado com sucesso!');
+        showToast('Usuário atualizado com sucesso!');
       } else {
         await dataService.createSeller({
           nome: form.nome,
           email: form.email,
-          perfil: 'vendedor',
+          perfil: form.perfil || 'vendedor',
           ativo: true,
           comissao_porcentagem: Number(form.comissao_porcentagem) || 0
         });
-        showToast('Vendedor cadastrado com sucesso!');
+        showToast('Usuário cadastrado com sucesso!');
       }
       await loadSellers();
       setIsModalOpen(false);
@@ -117,7 +118,7 @@ const Sellers: React.FC = () => {
           await dataService.deleteSeller(deletingId);
           await loadSellers();
           setIsDeleteModalOpen(false);
-          showToast('Vendedor removido com sucesso!');
+          showToast('Usuário removido com sucesso!');
       } catch (e) {
           console.error(e);
       } finally {
@@ -158,7 +159,7 @@ const Sellers: React.FC = () => {
         {activeTab === 'list' && (
             <>
                 <Button onClick={handleOpenCreate} fullWidth icon={ICONS.UserPlus}>
-                  Novo Vendedor
+                  Novo Membro
                 </Button>
 
                 <div className="space-y-3 pb-20">
@@ -274,7 +275,7 @@ const Sellers: React.FC = () => {
       </div>
 
       {/* --- MODALS (CRUD) --- */}
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingId ? "Editar Vendedor" : "Cadastrar Vendedor"}>
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingId ? "Editar Usuário" : "Cadastrar Usuário"}>
         <div className="space-y-4">
           <Input 
             label="Nome Completo" 
@@ -288,6 +289,19 @@ const Sellers: React.FC = () => {
             onChange={e => setForm({...form, email: e.target.value})}
             disabled={!!editingId} 
           />
+          
+          <div className="flex flex-col gap-1.5">
+             <label className="text-sm font-bold text-gray-700 dark:text-gray-300 ml-1">Perfil de Acesso</label>
+             <select 
+               className="w-full bg-white dark:bg-[#1E1E1E] border border-gray-200 dark:border-[#333] rounded-2xl px-4 py-4 text-gray-900 dark:text-white font-medium focus:outline-none focus:border-[#FF7A00]"
+               value={form.perfil}
+               onChange={e => setForm({...form, perfil: e.target.value as any})}
+             >
+                <option value="vendedor">Vendedor</option>
+                <option value="admin">Administrador</option>
+             </select>
+          </div>
+
           <Input 
             label="Comissão (%)" 
             type="number"
@@ -302,12 +316,12 @@ const Sellers: React.FC = () => {
         </div>
       </Modal>
 
-      <Modal isOpen={isDeleteModalOpen} onClose={() => setIsDeleteModalOpen(false)} title="Excluir Vendedor">
+      <Modal isOpen={isDeleteModalOpen} onClose={() => setIsDeleteModalOpen(false)} title="Excluir Usuário">
          <div className="text-center space-y-4">
              <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center text-red-500 mx-auto">
                 {ICONS.Trash}
              </div>
-             <p className="text-gray-600 dark:text-gray-300">Tem certeza? O acesso deste vendedor será revogado.</p>
+             <p className="text-gray-600 dark:text-gray-300">Tem certeza? O acesso deste usuário será revogado.</p>
              <div className="grid grid-cols-2 gap-3">
                  <Button variant="secondary" onClick={() => setIsDeleteModalOpen(false)}>Cancelar</Button>
                  <Button variant="danger" onClick={handleDelete} isLoading={loading}>Excluir</Button>

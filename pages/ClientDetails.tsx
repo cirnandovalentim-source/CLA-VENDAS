@@ -47,6 +47,8 @@ const ClientDetails: React.FC = () => {
   const [editForm, setEditForm] = useState({ valor: '', data_vencimento: '' });
   const [clientForm, setClientForm] = useState<Partial<Client>>({});
 
+  const isAdmin = session?.perfil === 'admin';
+
   const loadData = async () => {
     if (!id) return;
     const clientData = await dataService.getClientById(id);
@@ -316,9 +318,11 @@ const ClientDetails: React.FC = () => {
           {ICONS.Left}
         </button>
         <h1 className="text-lg font-bold text-gray-900 dark:text-white flex-1 truncate">{client.nome}</h1>
-        <button onClick={handleOpenEditClient} className="text-[#FF7A00]">
-            {ICONS.Edit}
-        </button>
+        {isAdmin && (
+            <button onClick={handleOpenEditClient} className="text-[#FF7A00]">
+                {ICONS.Edit}
+            </button>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 custom-scrollbar pb-24 space-y-6">
@@ -407,7 +411,7 @@ const ClientDetails: React.FC = () => {
                                 <button onClick={(e) => { e.stopPropagation(); openReceipt('SALE', sale, sale.id); }} className="text-xs text-blue-500 dark:text-blue-400 flex items-center gap-1 hover:underline">
                                     {ICONS.Printer} Recibo
                                 </button>
-                                {!isReturned && (
+                                {isAdmin && !isReturned && (
                                     <>
                                         <button onClick={(e) => { e.stopPropagation(); setReturnSaleId(sale.id); }} className="text-xs text-orange-500 dark:text-orange-400 flex items-center gap-1 hover:underline">
                                             {ICONS.Return} Devolver
@@ -437,9 +441,11 @@ const ClientDetails: React.FC = () => {
                                         </button>
                                     ) : !isReturned && (
                                        <div className="flex gap-1">
-                                         <button onClick={() => handleOpenEdit(inst)} className="p-1.5 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg">
-                                            {ICONS.Edit}
-                                         </button>
+                                         {isAdmin && (
+                                             <button onClick={() => handleOpenEdit(inst)} className="p-1.5 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg">
+                                                {ICONS.Edit}
+                                             </button>
+                                         )}
                                          <button onClick={() => handleOpenPay(inst)} className="p-1.5 text-green-600 dark:text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg">
                                             {ICONS.Check}
                                          </button>
