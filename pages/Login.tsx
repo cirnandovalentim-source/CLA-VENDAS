@@ -5,7 +5,7 @@ import { Button, Input, Modal } from '../components/ui';
 import { authService } from '../services/mockSupabase';
 import { isSupabaseConfigured, configureSupabase, clearSupabaseConfig, supabase } from '../services/supabaseClient';
 import { ROUTES } from '../constants';
-import { User, Lock, CheckCircle, AlertTriangle, ExternalLink, Settings, Wifi, WifiOff } from 'lucide-react';
+import { User, Lock, CheckCircle, AlertTriangle, ExternalLink, Settings, Wifi, WifiOff, Handshake } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 
 const Login: React.FC = () => {
@@ -146,11 +146,17 @@ const Login: React.FC = () => {
         
         {/* Brand Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-white dark:bg-[#1E1E1E] text-gray-900 dark:text-white shadow-2xl border border-gray-200 dark:border-white/5 mb-4">
-             <User size={32} />
+          <div className="inline-flex items-center justify-center w-28 h-28 rounded-full bg-gradient-to-br from-white to-gray-100 dark:from-[#1E1E1E] dark:to-[#252525] text-[#FF7A00] shadow-[0_8px_30px_rgba(255,122,0,0.15)] border-4 border-[#FF7A00] mb-4 relative overflow-hidden group">
+             {/* Logo Placeholder (Native Look) */}
+             <div className="absolute inset-0 bg-[#FF7A00]/5 flex items-center justify-center">
+                <Handshake size={56} className="text-gray-900 dark:text-white drop-shadow-sm" strokeWidth={1.5} />
+             </div>
+             
+             {/* Se quiser usar a imagem exata, descomente abaixo e salve o arquivo na pasta public */}
+             {/* <img src="/logo.png" alt="CLA Vendas" className="absolute inset-0 w-full h-full object-cover" /> */}
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">CLA VENDAS</h1>
-          <p className="text-gray-500 text-sm mt-1">Gestão de Vendas & Caixa</p>
+          <h1 className="text-3xl font-black text-gray-900 dark:text-white tracking-tight">CLA VENDAS</h1>
+          <p className="text-gray-500 font-medium text-sm mt-1">Gestão de Vendas & Caixa</p>
         </div>
 
         {/* Login Card */}
