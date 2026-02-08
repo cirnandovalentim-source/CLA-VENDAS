@@ -97,7 +97,7 @@ const Products: React.FC = () => {
     }
   };
 
-  // --- CSV IMPORT Handlers ---
+  // --- CSV IMPORT Handlers (FIXED) ---
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -128,8 +128,12 @@ const Products: React.FC = () => {
           return;
       }
 
+      // Detect separator: count commas vs semicolons in header
+      const headerLine = lines[0];
+      const separator = (headerLine.match(/;/g) || []).length > (headerLine.match(/,/g) || []).length ? ';' : ',';
+
       // Normalize headers
-      const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/"/g, ''));
+      const headers = headerLine.split(separator).map(h => h.trim().toLowerCase().replace(/"/g, ''));
       
       const nomeIdx = headers.findIndex(h => h.includes('nome') || h.includes('produto'));
       const catIdx = headers.findIndex(h => h.includes('categoria'));
@@ -146,10 +150,14 @@ const Products: React.FC = () => {
 
       const parsePrice = (val: string) => {
           if (!val) return 0;
-          let clean = val.replace(/[R$\s]/g, '');
+          let clean = val.replace(/[R$\s]/g, '').trim();
+          
+          // Tratamento para formato brasileiro 1.200,50 ou americano 1,200.50
           if (clean.includes(',') && !clean.includes('.')) {
+              // Ex: 120,50 -> 120.50
               clean = clean.replace(',', '.');
           } else if (clean.includes(',') && clean.includes('.')) {
+              // Ex: 1.200,50 -> 1200.50
               clean = clean.replace('.', '').replace(',', '.');
           }
           return parseFloat(clean) || 0;
@@ -159,7 +167,7 @@ const Products: React.FC = () => {
           const line = lines[i].trim();
           if (!line) continue;
           
-          const cols = line.split(',').map(c => c.trim().replace(/^"|"$/g, ''));
+          const cols = line.split(separator).map(c => c.trim().replace(/^"|"$/g, ''));
           
           if (cols[nomeIdx]) {
              const valorAvista = avistaIdx > -1 ? parsePrice(cols[avistaIdx]) : 0;
@@ -310,7 +318,7 @@ const Products: React.FC = () => {
              <div className="bg-blue-500/10 p-4 rounded-xl text-sm text-blue-600 dark:text-blue-300 border border-blue-500/20">
                 <p className="font-bold mb-2">Instruções:</p>
                 <p>1. Salve sua planilha como <strong>.csv</strong>.</p>
-                <p>2. Colunas necessárias: Nome, Categoria, Valor à Vista, Valor Parcelado.</p>
+                <p>2. Suporta vírgula ou ponto-e-vírgula (Excel).</p>
              </div>
 
              <div className="py-4">

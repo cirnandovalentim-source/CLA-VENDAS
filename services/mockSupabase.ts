@@ -58,11 +58,34 @@ const getCurrentUser = (): User | null => {
   return session ? JSON.parse(session) : null;
 };
 
+// SECURITY: Enforce RLS at Application Layer
 // Returns the ID to filter by, or NULL if admin (sees all)
 const getUserFilter = (): string | null => {
   const user = getCurrentUser();
-  if (!user) return null;
+  if (!user) return 'anon'; // Block access if not logged in
   return user.perfil === 'admin' ? null : user.id;
+};
+
+// HELPER: ERROR HANDLER FOR SUPABASE
+const handleSupabaseError = (error: any) => {
+    console.error("Supabase Operation Error:", error);
+    if (!error) return;
+    
+    // RLS / Permission Denied Error
+    if (error.code === '42501' || error.message?.includes('row-level security') || error.message?.includes('permission denied')) {
+        const msg = "ERRO DE PERMISSÃO (RLS):\nO banco de dados bloqueou esta ação.\n\nSOLUÇÃO:\n1. Vá na tela de Login -> Setup.\n2. Clique em 'CORRIGIR POLICIES'.\n3. Copie o código e rode no Supabase.";
+        alert(msg);
+        throw new Error(msg);
+    }
+    
+    // Missing Tables
+    if (error.code === '42P01') {
+        const msg = "ERRO: Tabelas não encontradas.\nExecute o script de Instalação no Setup.";
+        alert(msg);
+        throw new Error(msg);
+    }
+    
+    throw error;
 };
 
 // --- AUTH SERVICE ---
@@ -79,9 +102,8 @@ export const authService = {
           .maybeSingle(); 
 
         if (error) {
-            console.error("Supabase Login Error:", error);
-            if (error.code === '42P01') return { user: null, error: 'Banco de dados não configurado. Vá em "Configurar" na tela inicial e depois em "Setup".' };
-            if (error.code === 'PGRST301' || error.message?.includes('JWT')) return { user: null, error: 'Chave de API inválida.' };
+            if (error.code === '42P01') return { user: null, error: 'Banco de dados não configurado. Vá em Setup.' };
+            if (error.code === 'PGRST301') return { user: null, error: 'Chave de API inválida.' };
             return { user: null, error: `Erro no banco: ${error.message}` };
         }
         
@@ -119,12 +141,8 @@ export const authService = {
             .eq('email', email)
             .maybeSingle();
             
-        if (checkError) {
-             console.error("Check existing user error:", checkError);
-             if (checkError.code === '42P01') {
-                 return { user: null, error: 'ERRO: O Banco de Dados não tem as tabelas criadas. Vá na tela de Login -> Setup e rode o script.' };
-             }
-             return { user: null, error: 'Erro ao verificar e-mail. Verifique a conexão.' };
+        if (checkError && checkError.code !== 'PGRST116') { // Ignore "no rows" error
+             handleSupabaseError(checkError);
         }
 
         if (existing) {
@@ -143,9 +161,9 @@ export const authService = {
         const { data, error } = await supabase.from('users').insert([newUser]).select().single();
         
         if (error) {
-          console.error("Create User Error:", error);
-          if (error.code === '42501') return { user: null, error: 'Permissão negada (RLS). Rode o script de EMERGÊNCIA no Setup.' };
-          return { user: null, error: 'Erro ao criar conta no banco.' };
+          if (error.code === '42501') return { user: null, error: 'Permissão negada (RLS). Rode o script CORRIGIR POLICIES no Setup.' };
+          handleSupabaseError(error);
+          return { user: null, error: 'Erro ao criar conta.' };
         }
         
         const user: User = data;
@@ -153,8 +171,7 @@ export const authService = {
         return { user, error: null };
 
       } catch (e: any) {
-        console.error("Register Exception:", e);
-        return { user: null, error: 'Erro de conexão.' };
+        return { user: null, error: e.message || 'Erro de conexão.' };
       }
     }
 
@@ -194,8 +211,9 @@ const getSellers = async (): Promise<User[]> => {
     
     if (isSupabaseConfigured) {
         let query = supabase.from('users').select('*').order('nome');
-        if (filterId) query = query.eq('id', filterId);
-        const { data } = await query;
+        if (filterId) query = query.eq('id', filterId); // STRICT SECURITY
+        const { data, error } = await query;
+        if (error) handleSupabaseError(error);
         return data || [];
     }
     await delay(300);
@@ -205,9 +223,10 @@ const getSellers = async (): Promise<User[]> => {
 };
 
 const createSeller = async (userData: Omit<User, 'id'>): Promise<void> => {
+    // Only admins usually create sellers, but handled here just in case
     if (isSupabaseConfigured) {
         const { error } = await supabase.from('users').insert([{ ...userData, senha: '123456' }]);
-        if (error) throw error;
+        if (error) handleSupabaseError(error);
         return;
     }
     await delay(300);
@@ -218,7 +237,7 @@ const createSeller = async (userData: Omit<User, 'id'>): Promise<void> => {
 const updateSeller = async (id: string, updates: Partial<User>): Promise<void> => {
     if (isSupabaseConfigured) {
         const { error } = await supabase.from('users').update(updates).eq('id', id);
-        if (error) throw error;
+        if (error) handleSupabaseError(error);
         return;
     }
     await delay(300);
@@ -233,7 +252,7 @@ const updateSeller = async (id: string, updates: Partial<User>): Promise<void> =
 const deleteSeller = async (id: string): Promise<void> => {
     if (isSupabaseConfigured) {
         const { error } = await supabase.from('users').delete().eq('id', id);
-        if (error) throw error;
+        if (error) handleSupabaseError(error);
         return;
     }
     await delay(300);
@@ -247,9 +266,12 @@ const getClients = async (): Promise<Client[]> => {
     if (isSupabaseConfigured) {
         let query = supabase.from('clients').select('*').order('nome');
         if (filterId) {
-             try { query = query.eq('vendedor_id', filterId); } catch (e) { console.warn("Filter fail", e); }
+             query = query.eq('vendedor_id', filterId); // STRICT SECURITY
         }
-        const { data } = await query;
+        const { data, error } = await query;
+        if (error) {
+             if (error.code !== '42P01') handleSupabaseError(error);
+        }
         return data || [];
     }
     await delay(300);
@@ -260,7 +282,8 @@ const getClients = async (): Promise<Client[]> => {
 
 const getClientById = async (id: string): Promise<Client | undefined> => {
     if (isSupabaseConfigured) {
-        const { data } = await supabase.from('clients').select('*').eq('id', id).single();
+        const { data, error } = await supabase.from('clients').select('*').eq('id', id).single();
+        if (error) handleSupabaseError(error);
         return data || undefined;
     }
     await delay(200);
@@ -279,8 +302,8 @@ const uploadClientPhoto = async (file: File | Blob, clientId: string): Promise<s
 
             if (uploadError) {
                 const errMsg = uploadError.message || (uploadError as any).error || '';
-                if (errMsg.includes('Bucket') || errMsg.includes('row-level')) {
-                    alert("⚠️ CONFIGURAÇÃO NECESSÁRIA: " + errMsg);
+                if (errMsg.includes('Bucket') || errMsg.includes('row-level') || (uploadError as any).statusCode === '403') {
+                    alert("⚠️ ERRO DE PERMISSÃO NO STORAGE:\n\nVá em Setup > CORRIGIR POLICIES e execute o script.");
                     return null;
                 }
                 throw uploadError;
@@ -303,21 +326,23 @@ const uploadClientPhoto = async (file: File | Blob, clientId: string): Promise<s
 
 const createClient = async (client: Omit<Client, 'id'>): Promise<Client> => {
     const user = getCurrentUser();
-    let vId = user?.id || 'anon';
+    // STRICT SECURITY: Always force current user ID unless admin
+    let vId = user?.perfil === 'admin' ? (client.vendedor_id || user.id) : user?.id || 'anon';
     
     if (isSupabaseConfigured) {
         try {
             const { data, error } = await supabase.from('clients').insert([{ ...client, vendedor_id: vId }]).select().single();
             if (error) {
                 if (error.message.includes("foreign key") || error.message.includes("uuid")) {
+                    // Fallback for weird edge cases, but ideally shouldn't happen with correct DB setup
                     const { data: retryData, error: retryError } = await supabase.from('clients').insert([{ 
                         ...client, 
                         vendedor_id: null 
                     }]).select().single();
-                    if (retryError) throw retryError;
+                    if (retryError) handleSupabaseError(retryError);
                     return retryData;
                 }
-                throw error;
+                handleSupabaseError(error);
             }
             return data;
         } catch (e: any) {
@@ -335,7 +360,7 @@ const createClient = async (client: Omit<Client, 'id'>): Promise<Client> => {
 const updateClient = async (id: string, updates: Partial<Client>): Promise<void> => {
     if (isSupabaseConfigured) {
         const { error } = await supabase.from('clients').update(updates).eq('id', id);
-        if (error) throw error;
+        if (error) handleSupabaseError(error);
         return;
     }
     await delay(300);
@@ -350,7 +375,7 @@ const updateClient = async (id: string, updates: Partial<Client>): Promise<void>
 const deleteClient = async (id: string): Promise<void> => {
     if (isSupabaseConfigured) {
         const { error } = await supabase.from('clients').delete().eq('id', id);
-        if (error) throw error;
+        if (error) handleSupabaseError(error);
         return;
     }
     await delay(300);
@@ -358,10 +383,11 @@ const deleteClient = async (id: string): Promise<void> => {
     setStorage('clients', clients.filter(c => c.id !== id));
 };
 
-// PRODUCTS
+// PRODUCTS (Shared)
 const getProducts = async (): Promise<Product[]> => {
     if (isSupabaseConfigured) {
-        const { data } = await supabase.from('products').select('*').eq('ativo', true).order('nome');
+        const { data, error } = await supabase.from('products').select('*').eq('ativo', true).order('nome');
+        if (error && error.code !== '42P01') handleSupabaseError(error);
         return data || [];
     }
     await delay(300);
@@ -371,7 +397,7 @@ const getProducts = async (): Promise<Product[]> => {
 const createProduct = async (productData: Omit<Product, 'id'>): Promise<void> => {
     if (isSupabaseConfigured) {
         const { error } = await supabase.from('products').insert([productData]);
-        if (error) throw error;
+        if (error) handleSupabaseError(error);
         return;
     }
     await delay(300);
@@ -382,7 +408,7 @@ const createProduct = async (productData: Omit<Product, 'id'>): Promise<void> =>
 const updateProduct = async (id: string, updates: Partial<Product>): Promise<void> => {
     if (isSupabaseConfigured) {
         const { error } = await supabase.from('products').update(updates).eq('id', id);
-        if (error) throw error;
+        if (error) handleSupabaseError(error);
         return;
     }
     await delay(300);
@@ -397,7 +423,7 @@ const updateProduct = async (id: string, updates: Partial<Product>): Promise<voi
 const deleteProduct = async (id: string): Promise<void> => {
     if (isSupabaseConfigured) {
         const { error } = await supabase.from('products').delete().eq('id', id);
-        if (error) throw error;
+        if (error) handleSupabaseError(error);
         return;
     }
     await delay(300);
@@ -411,8 +437,9 @@ const getSales = async (): Promise<Sale[]> => {
 
     if (isSupabaseConfigured) {
         let query = supabase.from('sales').select('*, clients(nome)').order('data_venda', { ascending: false });
-        if (filterId) { try { query = query.eq('vendedor_id', filterId); } catch(e) {} }
-        const { data } = await query;
+        if (filterId) { query = query.eq('vendedor_id', filterId); } // STRICT SECURITY
+        const { data, error } = await query;
+        if (error) handleSupabaseError(error);
         return (data || []).map((s: any) => ({ ...s, cliente_nome: s.clients?.nome || 'Desconhecido' }));
     }
     await delay(300);
@@ -429,8 +456,9 @@ const getSalesByClient = async (clientId: string): Promise<Sale[]> => {
     const filterId = getUserFilter();
     if (isSupabaseConfigured) {
         let query = supabase.from('sales').select('*').eq('cliente_id', clientId).order('data_venda', { ascending: false });
-        if (filterId) { try { query = query.eq('vendedor_id', filterId); } catch(e){} }
-        const { data } = await query;
+        if (filterId) { query = query.eq('vendedor_id', filterId); } // STRICT SECURITY
+        const { data, error } = await query;
+        if (error) handleSupabaseError(error);
         return data || [];
     }
     await delay(300);
@@ -441,11 +469,34 @@ const getSalesByClient = async (clientId: string): Promise<Sale[]> => {
 
 const createSale = async (saleData: Omit<Sale, 'id' | 'status'>, installmentsData: Omit<Installment, 'id' | 'venda_id'>[]): Promise<void> => {
     if (isSupabaseConfigured) {
-        const { data: sale, error: saleError } = await supabase.from('sales').insert([{ ...saleData, status: 'ABERTA' }]).select().single();
-        if (saleError || !sale) throw saleError;
-        const installmentsWithId = installmentsData.map(i => ({ ...i, venda_id: sale.id }));
-        const { error: instError } = await supabase.from('installments').insert(installmentsWithId);
-        if (instError) throw instError;
+        // Force Vendedor ID
+        const user = getCurrentUser();
+        const vId = user?.id;
+        if (!vId) throw new Error("Usuário não logado");
+        
+        const salePayload = { ...saleData, vendedor_id: vId, status: 'ABERTA' };
+        
+        // 1. Create Sale
+        const { data: sale, error: saleError } = await supabase.from('sales').insert([salePayload]).select().single();
+        if (saleError || !sale) {
+            handleSupabaseError(saleError);
+            return;
+        }
+        
+        // 2. Create Installments
+        try {
+            const installmentsWithId = installmentsData.map(i => ({ ...i, venda_id: sale.id }));
+            const { error: instError } = await supabase.from('installments').insert(installmentsWithId);
+            
+            if (instError) {
+                // ROLLBACK: Delete the sale if installments fail
+                console.error("Installment error, rolling back sale...", instError);
+                await supabase.from('sales').delete().eq('id', sale.id);
+                throw instError;
+            }
+        } catch (e: any) {
+             throw new Error("Erro ao criar parcelas: " + e.message);
+        }
         return;
     }
     await delay(800);
@@ -460,8 +511,9 @@ const createSale = async (saleData: Omit<Sale, 'id' | 'status'>, installmentsDat
 
 const deleteSale = async (saleId: string): Promise<void> => {
     if (isSupabaseConfigured) {
+        // ON DELETE CASCADE handles children, but we call delete on parent
         const { error } = await supabase.from('sales').delete().eq('id', saleId);
-        if (error) throw error;
+        if (error) handleSupabaseError(error);
         return;
     }
     await delay(400);
@@ -496,7 +548,8 @@ const returnSale = async (saleId: string): Promise<void> => {
 // INSTALLMENTS
 const getInstallmentsBySale = async (saleId: string): Promise<Installment[]> => {
     if (isSupabaseConfigured) {
-        const { data } = await supabase.from('installments').select('*').eq('venda_id', saleId).order('numero_parcela');
+        const { data, error } = await supabase.from('installments').select('*').eq('venda_id', saleId).order('numero_parcela');
+        if (error) handleSupabaseError(error);
         return data || [];
     }
     await delay(200);
@@ -506,7 +559,7 @@ const getInstallmentsBySale = async (saleId: string): Promise<Installment[]> => 
 const updateInstallment = async (id: string, updates: Partial<Pick<Installment, 'valor' | 'data_vencimento'>>): Promise<void> => {
     if (isSupabaseConfigured) {
         const { error } = await supabase.from('installments').update(updates).eq('id', id);
-        if (error) throw error;
+        if (error) handleSupabaseError(error);
         return;
     }
     await delay(200);
@@ -527,6 +580,7 @@ const getInstallmentsByDate = async (date: Date): Promise<{
     const end = endOfDay(date).toISOString();
     
     if (isSupabaseConfigured) {
+        // STRICT SECURITY: JOIN WITH SALES AND FILTER BY VENDEDOR
         let query = supabase
             .from('installments')
             .select('*, sales!inner(id, vendedor_id, is_mumbuca, clients(nome))')
@@ -536,10 +590,11 @@ const getInstallmentsByDate = async (date: Date): Promise<{
             .order('data_vencimento');
         
         if (filterId) {
-             try { query = query.eq('sales.vendedor_id', filterId); } catch(e){}
+             query = query.eq('sales.vendedor_id', filterId);
         }
 
-        const { data: daily } = await query;
+        const { data: daily, error: dailyError } = await query;
+        if (dailyError) handleSupabaseError(dailyError);
 
         let overdueQuery = supabase
             .from('installments')
@@ -548,7 +603,7 @@ const getInstallmentsByDate = async (date: Date): Promise<{
             .lt('data_vencimento', startOfDay(new Date()).toISOString());
 
         if (filterId) {
-             try { overdueQuery = overdueQuery.eq('sales.vendedor_id', filterId); } catch(e){}
+             overdueQuery = overdueQuery.eq('sales.vendedor_id', filterId);
         }
 
         const { count: overdueCount } = await overdueQuery;
@@ -602,8 +657,11 @@ const getDueInstallments = async (): Promise<(Installment & { cliente_nome: stri
             .eq('pago', false)
             .lte('data_vencimento', today.toISOString())
             .order('data_vencimento');
-        if (filterId) { try { query = query.eq('sales.vendedor_id', filterId); } catch(e){} }
-        const { data } = await query;
+        
+        if (filterId) { query = query.eq('sales.vendedor_id', filterId); } // STRICT SECURITY
+
+        const { data, error } = await query;
+        if (error) handleSupabaseError(error);
         return (data || []).map((i: any) => ({ 
             ...i, 
             cliente_nome: i.sales?.clients?.nome || 'Desconhecido', 
@@ -640,7 +698,8 @@ const payInstallment = async (installmentId: string, vendedorId: string, actualA
         if (!inst || inst.pago) return;
 
         const paidValue = actualAmountPaid !== undefined ? actualAmountPaid : inst.valor;
-        const difference = inst.valor - paidValue;
+        // Fix Floating Point Precision Issue
+        const difference = Number((inst.valor - paidValue).toFixed(2));
 
         await supabase.from('installments').update({ 
             pago: true, 
@@ -668,7 +727,7 @@ const payInstallment = async (installmentId: string, vendedorId: string, actualA
                 .single();
             if (next) {
                 await supabase.from('installments').update({
-                    valor: next.valor + difference
+                    valor: Number((next.valor + difference).toFixed(2))
                 }).eq('id', next.id);
             }
         }
@@ -696,7 +755,7 @@ const payInstallment = async (installmentId: string, vendedorId: string, actualA
     if (installment.pago) return;
 
     const paidValue = actualAmountPaid !== undefined ? actualAmountPaid : installment.valor;
-    const difference = installment.valor - paidValue;
+    const difference = Number((installment.valor - paidValue).toFixed(2));
 
     installments[instIndex] = { 
         ...installment, 
@@ -725,7 +784,7 @@ const payInstallment = async (installmentId: string, vendedorId: string, actualA
             const nextTarget = nextInstallments[0];
             installments[nextTarget.originalIndex] = {
                 ...installments[nextTarget.originalIndex],
-                valor: installments[nextTarget.originalIndex].valor + difference
+                valor: Number((installments[nextTarget.originalIndex].valor + difference).toFixed(2))
             };
         }
     }
@@ -745,7 +804,8 @@ const payInstallment = async (installmentId: string, vendedorId: string, actualA
 
 const addExpense = async (description: string, value: number, vendedorId: string): Promise<void> => {
      if (isSupabaseConfigured) {
-         await supabase.from('cash_flow').insert([{ tipo: 'SAIDA', valor: value, descricao: description, vendedor_id: vendedorId, data: new Date().toISOString() }]);
+         const { error } = await supabase.from('cash_flow').insert([{ tipo: 'SAIDA', valor: value, descricao: description, vendedor_id: vendedorId, data: new Date().toISOString() }]);
+         if (error) handleSupabaseError(error);
          return;
      }
      await delay(300);
@@ -756,7 +816,8 @@ const addExpense = async (description: string, value: number, vendedorId: string
 
 const deleteCashEntry = async (id: string): Promise<void> => {
       if (isSupabaseConfigured) {
-          await supabase.from('cash_flow').delete().eq('id', id);
+          const { error } = await supabase.from('cash_flow').delete().eq('id', id);
+          if (error) handleSupabaseError(error);
           return;
       }
       await delay(300);
@@ -768,8 +829,9 @@ const getCashFlow = async (): Promise<CashEntry[]> => {
       const filterId = getUserFilter();
       if (isSupabaseConfigured) {
           let query = supabase.from('cash_flow').select('*').order('data', { ascending: false });
-          if (filterId) { try { query = query.eq('vendedor_id', filterId); } catch(e){} }
-          const { data } = await query;
+          if (filterId) { query = query.eq('vendedor_id', filterId); } // STRICT SECURITY
+          const { data, error } = await query;
+          if (error && error.code !== '42P01') handleSupabaseError(error);
           return data || [];
       }
       await delay(300);
@@ -781,23 +843,33 @@ const getCashFlow = async (): Promise<CashEntry[]> => {
 const getDashboardStats = async () => {
       const filterId = getUserFilter();
       if (isSupabaseConfigured) {
-          let salesQuery = supabase.from('sales').select('id, valor_total');
-          if (filterId) { try { salesQuery = salesQuery.eq('vendedor_id', filterId); } catch(e){} }
-          const { data: sales } = await salesQuery;
-          const salesIds = sales?.map(s => s.id) || [];
-          if (salesIds.length === 0) return { totalVendido: 0, totalRecebido: 0, totalReceber: 0, inadimplencia: 0 };
-          
-          const { data: paidInst } = await supabase.from('installments').select('valor').in('venda_id', salesIds).eq('pago', true);
-          const { data: openInst } = await supabase.from('installments').select('valor').in('venda_id', salesIds).eq('pago', false);
-          const today = new Date().toISOString();
-          const { data: overdueInst } = await supabase.from('installments').select('valor').in('venda_id', salesIds).eq('pago', false).lt('data_vencimento', today);
-          
-          return {
-             totalVendido: sales?.reduce((acc, curr) => acc + curr.valor_total, 0) || 0,
-             totalRecebido: paidInst?.reduce((acc, curr) => acc + curr.valor, 0) || 0,
-             totalReceber: openInst?.reduce((acc, curr) => acc + curr.valor, 0) || 0,
-             inadimplencia: overdueInst?.reduce((acc, curr) => acc + curr.valor, 0) || 0
-          };
+          try {
+              let salesQuery = supabase.from('sales').select('id, valor_total');
+              if (filterId) { salesQuery = salesQuery.eq('vendedor_id', filterId); } // STRICT SECURITY
+              const { data: sales, error: salesError } = await salesQuery;
+              if (salesError) {
+                  if (salesError.code !== '42P01') handleSupabaseError(salesError);
+                  return { totalVendido: 0, totalRecebido: 0, totalReceber: 0, inadimplencia: 0 };
+              }
+
+              const salesIds = sales?.map(s => s.id) || [];
+              if (salesIds.length === 0) return { totalVendido: 0, totalRecebido: 0, totalReceber: 0, inadimplencia: 0 };
+              
+              const { data: paidInst } = await supabase.from('installments').select('valor').in('venda_id', salesIds).eq('pago', true);
+              const { data: openInst } = await supabase.from('installments').select('valor').in('venda_id', salesIds).eq('pago', false);
+              const today = new Date().toISOString();
+              const { data: overdueInst } = await supabase.from('installments').select('valor').in('venda_id', salesIds).eq('pago', false).lt('data_vencimento', today);
+              
+              return {
+                 totalVendido: sales?.reduce((acc, curr) => acc + curr.valor_total, 0) || 0,
+                 totalRecebido: paidInst?.reduce((acc, curr) => acc + curr.valor, 0) || 0,
+                 totalReceber: openInst?.reduce((acc, curr) => acc + curr.valor, 0) || 0,
+                 inadimplencia: overdueInst?.reduce((acc, curr) => acc + curr.valor, 0) || 0
+              };
+          } catch (e) {
+              console.error(e);
+              return { totalVendido: 0, totalRecebido: 0, totalReceber: 0, inadimplencia: 0 };
+          }
       }
       await delay(500);
       let sales = getStorage<Sale[]>('sales', []);
@@ -837,6 +909,8 @@ const getDetailedReports = async (startDate: Date, endDate: Date, sellerId?: str
     };
     
     const currentUser = getCurrentUser();
+    
+    // SECURITY: Non-admins can ONLY see their own data, ignoring the 'sellerId' param if passed
     let finalSellerId = sellerId;
     if (currentUser?.perfil !== 'admin') {
         finalSellerId = currentUser?.id;
@@ -847,14 +921,15 @@ const getDetailedReports = async (startDate: Date, endDate: Date, sellerId?: str
         let cashQuery = supabase.from('cash_flow').select('*').eq('tipo', 'ENTRADA').gte('data', startDate.toISOString()).lte('data', endDate.toISOString());
         
         if (finalSellerId && finalSellerId !== 'all') {
-            try {
-                salesQuery = salesQuery.eq('vendedor_id', finalSellerId);
-                cashQuery = cashQuery.eq('vendedor_id', finalSellerId);
-            } catch(e) {}
+            salesQuery = salesQuery.eq('vendedor_id', finalSellerId);
+            cashQuery = cashQuery.eq('vendedor_id', finalSellerId);
         }
 
-        const { data: sData } = await salesQuery;
-        const { data: cData } = await cashQuery;
+        const { data: sData, error: sError } = await salesQuery;
+        const { data: cData, error: cError } = await cashQuery;
+        
+        if (sError) handleSupabaseError(sError);
+        
         const sales = (sData || []).map((s: any) => ({ ...s, cliente_nome: s.clients?.nome || 'Desconhecido' }));
         return processData(sales, cData || []);
     }

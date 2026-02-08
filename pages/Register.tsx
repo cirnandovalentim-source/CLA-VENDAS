@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Input } from '../components/ui';
 import { authService } from '../services/mockSupabase';
+import { clearSupabaseConfig } from '../services/supabaseClient';
 import { ROUTES } from '../constants';
 
 const Register: React.FC = () => {
@@ -45,6 +46,11 @@ const Register: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleResetConfig = () => {
+      clearSupabaseConfig();
+      navigate(ROUTES.LOGIN);
   };
 
   return (
@@ -104,6 +110,18 @@ const Register: React.FC = () => {
             <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm text-center">
               <p className="font-bold mb-1">Falha no Registro</p>
               <p>{error}</p>
+              
+              {/* Botão de Reset se for erro de Chave Inválida */}
+              {(error.includes('Invalid API key') || error.includes('JWT') || error.includes('401')) && (
+                 <button 
+                   type="button"
+                   onClick={handleResetConfig}
+                   className="mt-3 w-full bg-red-500/20 py-2 rounded text-xs text-red-300 hover:bg-red-500/30 font-bold border border-red-500/30"
+                 >
+                   RESETAR CONFIGURAÇÃO (Voltar para Offline)
+                 </button>
+              )}
+
               {(error.includes('Setup') || error.includes('Tabelas')) && (
                  <button 
                    type="button"

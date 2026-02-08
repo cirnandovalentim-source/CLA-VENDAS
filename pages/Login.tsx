@@ -5,7 +5,7 @@ import { Button, Input, Modal } from '../components/ui';
 import { authService } from '../services/mockSupabase';
 import { isSupabaseConfigured, configureSupabase, clearSupabaseConfig, supabase } from '../services/supabaseClient';
 import { ROUTES } from '../constants';
-import { User, Lock, Database, CheckCircle, AlertTriangle, ExternalLink, Settings } from 'lucide-react';
+import { User, Lock, CheckCircle, AlertTriangle, ExternalLink, Settings, Wifi, WifiOff } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 
 const Login: React.FC = () => {
@@ -25,18 +25,19 @@ const Login: React.FC = () => {
   // Pre-fill URL based on current configuration or default
   useEffect(() => {
     if (showConfig) {
-        // Try to get from storage first, otherwise use the active client URL (which might be the hardcoded one)
+        // Try to get from storage first, otherwise use the active client URL
         const storedUrl = localStorage.getItem('cla_supabase_url');
         const storedKey = localStorage.getItem('cla_supabase_key');
         
-        // Extract URL from current supabase instance if storage is empty
+        // Extract URL from current supabase instance
         // @ts-ignore
         const currentUrl = supabase.supabaseUrl;
-        // @ts-ignore
-        const currentKey = supabase.supabaseKey;
+        
+        // Only autofill if it's not the placeholder
+        const effectiveUrl = currentUrl && !currentUrl.includes('placeholder') ? currentUrl : 'https://taubsuolhawpdibrhtkb.supabase.co';
 
-        setApiUrl(storedUrl || currentUrl || 'https://taubsuolhawpdibrhtkb.supabase.co');
-        setApiKey(storedKey || currentKey || '');
+        setApiUrl(storedUrl || effectiveUrl);
+        setApiKey(storedKey || '');
         
         setTestStatus('idle');
         setTestMessage('');
@@ -52,8 +53,8 @@ const Login: React.FC = () => {
       const { user, error: authError } = await authService.login(email, password);
       if (authError) {
         setError(authError);
-        // Se o erro for de conexão/URL, sugere abrir config
-        if (authError.includes('conexão') || authError.includes('fetch') || authError.includes('URL')) {
+        // Se o erro for de conexão/URL, sugere abrir config (apenas se não estiver hardcoded)
+        if ((authError.includes('conexão') || authError.includes('fetch')) && !isSupabaseConfigured) {
             setTimeout(() => setShowConfig(true), 1500);
         }
       } else if (user) {
@@ -83,7 +84,6 @@ const Login: React.FC = () => {
     const cleanUrl = apiUrl.trim();
     const cleanKey = apiKey.trim();
 
-    // ERROR TRAP: User pasted PostgreSQL string instead of HTTP URL
     if (cleanUrl.startsWith('postgresql://') || cleanUrl.startsWith('postgres://')) {
         setTestStatus('error');
         setTestMessage("Erro: Use a URL da API (https://...), não a do Banco.");
@@ -101,38 +101,26 @@ const Login: React.FC = () => {
     setTestMessage("Testando conexão...");
 
     try {
-        // Create a temporary client just to test credentials
         const tempClient = createClient(cleanUrl, cleanKey);
-        
-        // Try a very simple query. Even if table doesn't exist, Supabase returns specific errors
-        // that prove connection was successful (vs network error).
         const { error } = await tempClient.from('users').select('count', { count: 'exact', head: true });
 
-        // Analyze Error
         if (error) {
-            // These errors mean we CONNECTED, but maybe tables are missing (which is fine, Setup fixes it)
             const isTableMissing = error.code === '42P01' || error.message.includes('does not exist');
             const isAuthError = error.code === 'PGRST301' || error.message.includes('JWT') || error.code === '401';
             
             if (isTableMissing) {
-                 // Success! Connected, but DB needs setup
                  configureSupabase(cleanKey, cleanUrl);
                  return;
             }
-            
             if (isAuthError) {
                 throw new Error("Chave de API inválida (Use a 'anon public').");
             }
-            
-            // Other errors (like network)
             if (error.message && (error.message.includes('FetchError') || error.message.includes('Failed to fetch'))) {
                 throw new Error("Erro de Rede: Verifique a URL.");
             }
-            
             console.warn("Connection warning:", error);
         }
 
-        // If no error, or acceptable error, save!
         setTestStatus('success');
         setTestMessage("Conectado! Reiniciando...");
         
@@ -161,8 +149,8 @@ const Login: React.FC = () => {
           <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-white dark:bg-[#1E1E1E] text-gray-900 dark:text-white shadow-2xl border border-gray-200 dark:border-white/5 mb-4">
              <User size={32} />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">Acesso ao Sistema</h1>
-          <p className="text-gray-500 text-sm mt-1">Entre com suas credenciais de usuário</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">CLA VENDAS</h1>
+          <p className="text-gray-500 text-sm mt-1">Gestão de Vendas & Caixa</p>
         </div>
 
         {/* Login Card */}
@@ -172,7 +160,7 @@ const Login: React.FC = () => {
               <Input 
                 type="email" 
                 placeholder="nome@exemplo.com" 
-                label="E-mail do Usuário"
+                label="E-mail"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -181,7 +169,7 @@ const Login: React.FC = () => {
               <Input 
                 type="password" 
                 placeholder="••••••" 
-                label="Senha de Acesso"
+                label="Senha"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
@@ -196,7 +184,7 @@ const Login: React.FC = () => {
             )}
 
             <Button type="submit" fullWidth isLoading={loading} className="py-4 shadow-orange-900/20">
-              Entrar no Sistema
+              Entrar
             </Button>
           </form>
 
@@ -206,35 +194,33 @@ const Login: React.FC = () => {
                onClick={() => navigate(ROUTES.REGISTER)}
                className="text-sm text-gray-500 hover:text-gray-900 dark:hover:text-white transition-colors"
              >
-              Não possui conta? <span className="text-[#FF7A00] font-bold">Cadastrar Usuário</span>
+              Primeiro acesso? <span className="text-[#FF7A00] font-bold">Criar Conta</span>
             </button>
           </div>
         </div>
 
-        {/* Technical Footer */}
+        {/* Connection Status Footer */}
         <div className="mt-8 text-center space-y-3">
-          <div className="flex justify-center items-center gap-2">
-                <div className={`w-2 h-2 rounded-full ${isSupabaseConfigured ? 'bg-green-500 animate-pulse' : 'bg-orange-500'}`}></div>
-                <p className="text-[10px] text-gray-500 uppercase tracking-widest font-bold">
-                  {isSupabaseConfigured ? 'Banco de Dados Conectado' : 'Modo Offline (Local)'}
-                </p>
+          <div className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest border ${isSupabaseConfigured ? 'bg-green-500/10 text-green-600 border-green-500/20' : 'bg-gray-100 text-gray-500 border-gray-200'}`}>
+                {isSupabaseConfigured ? <Wifi size={12} /> : <WifiOff size={12} />}
+                {isSupabaseConfigured ? 'Conectado' : 'Modo Offline'}
           </div>
           
           <div className="flex gap-4 justify-center items-center">
                <button 
                  onClick={() => setShowConfig(true)}
-                 className="text-[10px] bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 px-3 py-1.5 rounded-full text-gray-600 dark:text-gray-300 hover:bg-gray-50 transition-colors flex items-center gap-1.5"
+                 className="text-[10px] text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors flex items-center gap-1.5"
                >
                  <Settings size={10} />
-                 {isSupabaseConfigured ? 'Editar Conexão' : 'Configurar'}
+                 Configuração Manual
                </button>
                
                {isSupabaseConfigured && (
                    <button 
                      onClick={() => navigate(ROUTES.SETUP)}
-                     className="text-[10px] text-gray-500 hover:text-[#FF7A00] transition-colors"
+                     className="text-[10px] text-gray-400 hover:text-[#FF7A00] transition-colors"
                    >
-                     Setup & Correções
+                     Reparar Banco
                    </button>
                )}
           </div>
@@ -245,26 +231,25 @@ const Login: React.FC = () => {
       <Modal isOpen={showConfig} onClose={() => setShowConfig(false)} title="Conectar Supabase">
          <div className="space-y-4">
             <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-100 dark:border-blue-900/30 text-xs text-blue-600 dark:text-blue-300">
-               <p className="mb-2">Para conectar, você precisa da <strong>URL</strong> e da <strong>Chave Pública (anon)</strong>.</p>
+               <p className="mb-2"><strong>Dica:</strong> Para não precisar configurar isso sempre, adicione as chaves no arquivo <code>services/supabaseClient.ts</code>.</p>
                <a 
                  href="https://supabase.com/dashboard/project/taubsuolhawpdibrhtkb/settings/api" 
                  target="_blank" 
                  rel="noopener noreferrer"
                  className="flex items-center gap-1 text-[#FF7A00] font-bold underline hover:text-[#E66E00] transition-colors"
                >
-                 Pegar Chave no Supabase <ExternalLink size={12} />
+                 Pegar Chave Anon Public <ExternalLink size={12} />
                </a>
             </div>
             
             <Input 
-               label="URL do Projeto (API)"
-               placeholder="https://taubsuolhawpdibrhtkb.supabase.co"
+               label="URL do Projeto"
                value={apiUrl}
                onChange={(e) => setApiUrl(e.target.value)}
             />
 
             <Input 
-               label="Chave Pública (anon public)"
+               label="Chave Pública (Anon)"
                placeholder="eyJh..."
                value={apiKey}
                onChange={(e) => setApiKey(e.target.value)}
@@ -283,15 +268,13 @@ const Login: React.FC = () => {
             )}
 
             <Button fullWidth onClick={handleSaveConfig} isLoading={testStatus === 'testing'}>
-               Testar Conexão e Salvar
+               Salvar Conexão
             </Button>
             
-            {/* Fallback info */}
-            <div className="mt-4 pt-4 border-t border-gray-200 dark:border-white/10">
-                <p className="text-xs text-center text-gray-500 mb-2">Se não conseguir conectar, use o modo local:</p>
-                <div className="flex justify-center gap-2">
-                   <button onClick={clearSupabaseConfig} className="text-xs text-red-500 underline">Voltar para Offline</button>
-                </div>
+            <div className="mt-4 pt-4 border-t border-gray-200 dark:border-white/10 flex justify-center">
+                <button onClick={clearSupabaseConfig} className="text-xs text-red-500 underline hover:text-red-600">
+                    Resetar para Offline
+                </button>
             </div>
          </div>
       </Modal>

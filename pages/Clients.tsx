@@ -255,8 +255,7 @@ const Clients: React.FC = () => {
     }
   };
 
-  // --- CSV IMPORT Handlers ---
-
+  // --- CSV IMPORT Handlers (Fixed for BR format) ---
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -286,7 +285,12 @@ const Clients: React.FC = () => {
           setImportStatus('Arquivo vazio ou sem cabeçalho.');
           return;
       }
-      const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/"/g, ''));
+      
+      // Detect separator: count commas vs semicolons in header
+      const headerLine = lines[0];
+      const separator = (headerLine.match(/;/g) || []).length > (headerLine.match(/,/g) || []).length ? ';' : ',';
+
+      const headers = headerLine.split(separator).map(h => h.trim().toLowerCase().replace(/"/g, ''));
       const nomeIdx = headers.findIndex(h => h.includes('nome'));
       const telIdx = headers.findIndex(h => h.includes('telefone') || h.includes('celular'));
       const endIdx = headers.findIndex(h => h.includes('endereco'));
@@ -304,7 +308,7 @@ const Clients: React.FC = () => {
       for (let i = 1; i < lines.length; i++) {
           const line = lines[i].trim();
           if (!line) continue;
-          const cols = line.split(',').map(c => c.trim().replace(/^"|"$/g, ''));
+          const cols = line.split(separator).map(c => c.trim().replace(/^"|"$/g, ''));
           
           if (cols[nomeIdx]) {
              const newClient: any = {
@@ -475,7 +479,6 @@ const Clients: React.FC = () => {
             onChange={e => setClientForm(prev => ({...prev, telefone: e.target.value}))}
           />
           
-          {/* MUMBUCA TOGGLE */}
           <div 
             onClick={() => setClientForm(prev => ({...prev, is_mumbuca: !prev.is_mumbuca}))}
             className={`p-3 rounded-xl border cursor-pointer flex items-center justify-between transition-colors ${clientForm.is_mumbuca ? 'bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-500/30' : 'bg-gray-50 border-gray-200 dark:bg-[#252525] dark:border-[#333]'}`}
@@ -520,7 +523,7 @@ const Clients: React.FC = () => {
          <div className="space-y-4">
              <div className="bg-blue-500/10 p-4 rounded-xl text-sm text-blue-600 dark:text-blue-300 border border-blue-500/20">
                 <p className="font-bold mb-2">Instruções:</p>
-                <p className="mb-2">Salve como <strong>.csv</strong>. Primeira linha: cabeçalhos.</p>
+                <p className="mb-2">Salve como <strong>.csv</strong>. Use vírgula ou ponto-e-vírgula (Excel).</p>
              </div>
              <div className="py-4">
                  <input type="file" accept=".csv" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
@@ -541,7 +544,7 @@ const Clients: React.FC = () => {
              <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center text-red-500 mx-auto">
                 {ICONS.Trash}
              </div>
-             <p className="text-gray-600 dark:text-gray-300">Tem certeza que deseja excluir este cliente?</p>
+             <p className="text-gray-600 dark:text-gray-300">Tem certeza? Isso apagará todas as vendas e histórico deste cliente.</p>
              <div className="grid grid-cols-2 gap-3">
                  <Button variant="secondary" onClick={() => setIsDeleteModalOpen(false)}>Cancelar</Button>
                  <Button variant="danger" onClick={handleDeleteClient} isLoading={loading}>Excluir</Button>

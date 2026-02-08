@@ -7,16 +7,16 @@ import { Button, Card } from '../components/ui';
 const Setup: React.FC = () => {
   const navigate = useNavigate();
   const [copied, setCopied] = useState(false);
-  const [activeTab, setActiveTab] = useState<'install' | 'fix'>('install');
+  const [activeTab, setActiveTab] = useState<'install' | 'rls'>('install');
 
-  // --- SCRIPT 1: INSTALAÇÃO LIMPA (PARA BANCO NOVO) ---
+  // --- SCRIPT 1: INSTALAÇÃO LIMPA (ATUALIZADO COM CASCADES) ---
   const installSQL = `
--- SCRIPT DE INSTALAÇÃO COMPLETA --
+-- SCRIPT DE INSTALAÇÃO (VERSÃO CORRIGIDA) --
+-- Garante a limpeza correta de dados ao excluir registros --
 
--- 1. HABILITAR EXTENSÕES
 create extension if not exists pgcrypto;
 
--- 2. CRIAR TABELAS (Se não existirem)
+-- 1. CRIAR TABELAS
 create table if not exists users (
   id uuid default gen_random_uuid() primary key,
   email text unique not null,
@@ -52,9 +52,10 @@ create table if not exists products (
   created_at timestamptz default now()
 );
 
+-- Tabela de Vendas com vínculo ao Cliente (Cascade: Apaga venda se cliente for apagado)
 create table if not exists sales (
   id uuid default gen_random_uuid() primary key,
-  cliente_id uuid references clients(id),
+  cliente_id uuid references clients(id) on delete cascade, 
   vendedor_id text,
   valor_total numeric default 0,
   qtd_parcelas integer default 1,
@@ -64,6 +65,7 @@ create table if not exists sales (
   created_at timestamptz default now()
 );
 
+-- Tabela de Parcelas (Cascade: Apaga parcelas se venda for apagada)
 create table if not exists installments (
   id uuid default gen_random_uuid() primary key,
   venda_id uuid references sales(id) on delete cascade,
@@ -75,6 +77,7 @@ create table if not exists installments (
   created_at timestamptz default now()
 );
 
+-- Tabela de Caixa (Cascade: Apaga lançamento se venda for apagada)
 create table if not exists cash_flow (
   id uuid default gen_random_uuid() primary key,
   data timestamptz default now(),
@@ -82,79 +85,108 @@ create table if not exists cash_flow (
   valor numeric default 0,
   descricao text,
   vendedor_id text,
-  venda_id uuid,
+  venda_id uuid references sales(id) on delete cascade,
   created_at timestamptz default now()
 );
 
--- 3. STORAGE (BUCKET DE FOTOS)
--- O comando abaixo cria o bucket, mas SE JÁ EXISTIR, ele não faz nada (evita o erro).
-INSERT INTO storage.buckets (id, name, public)
-VALUES ('clientes-fotos', 'clientes-fotos', true)
-ON CONFLICT (id) DO NOTHING;
+-- 2. ATIVAR RLS (SEGURANÇA)
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE clients ENABLE ROW LEVEL SECURITY;
+ALTER TABLE products ENABLE ROW LEVEL SECURITY;
+ALTER TABLE sales ENABLE ROW LEVEL SECURITY;
+ALTER TABLE installments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE cash_flow ENABLE ROW LEVEL SECURITY;
 
--- 4. POLÍTICAS DE ACESSO (STORAGE)
--- Limpa antigas para evitar duplicidade
+-- 3. CRIAR POLÍTICAS DE ACESSO (CORREÇÃO ERRO 42501)
+-- Permite acesso total à API (o filtro é feito no App para performance)
+
 DO $$
 BEGIN
-    DROP POLICY IF EXISTS "Give Access" ON storage.objects;
-    DROP POLICY IF EXISTS "Give Upload" ON storage.objects;
-    DROP POLICY IF EXISTS "Give Update" ON storage.objects;
-    DROP POLICY IF EXISTS "Give Delete" ON storage.objects;
+    DROP POLICY IF EXISTS "App Access" ON users;
+    DROP POLICY IF EXISTS "App Access" ON clients;
+    DROP POLICY IF EXISTS "App Access" ON products;
+    DROP POLICY IF EXISTS "App Access" ON sales;
+    DROP POLICY IF EXISTS "App Access" ON installments;
+    DROP POLICY IF EXISTS "App Access" ON cash_flow;
 END $$;
 
--- Cria novas permissões
-CREATE POLICY "Give Access" ON storage.objects FOR SELECT USING ( bucket_id = 'clientes-fotos' );
-CREATE POLICY "Give Upload" ON storage.objects FOR INSERT WITH CHECK ( bucket_id = 'clientes-fotos' );
-CREATE POLICY "Give Update" ON storage.objects FOR UPDATE WITH CHECK ( bucket_id = 'clientes-fotos' );
-CREATE POLICY "Give Delete" ON storage.objects FOR DELETE USING ( bucket_id = 'clientes-fotos' );
+CREATE POLICY "App Access" ON users FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "App Access" ON clients FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "App Access" ON products FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "App Access" ON sales FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "App Access" ON installments FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "App Access" ON cash_flow FOR ALL USING (true) WITH CHECK (true);
 
+-- 4. CONCEDER PERMISSÕES
+GRANT ALL ON ALL TABLES IN SCHEMA public TO postgres, anon, authenticated, service_role;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO postgres, anon, authenticated, service_role;
+
+-- 5. STORAGE (FOTOS)
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('clientes-fotos', 'clientes-fotos', true)
+ON CONFLICT (id) DO UPDATE SET public = true;
+
+ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public Access" ON storage.objects;
+CREATE POLICY "Public Access" ON storage.objects FOR ALL USING ( bucket_id = 'clientes-fotos' ) WITH CHECK ( bucket_id = 'clientes-fotos' );
 GRANT ALL ON storage.objects TO anon, authenticated, service_role;
 
--- 5. LIBERAR ACESSO ÀS TABELAS (DESATIVAR RLS)
--- Isso garante que o app funcione sem bloqueios de permissão complexos
-ALTER TABLE users DISABLE ROW LEVEL SECURITY;
-ALTER TABLE clients DISABLE ROW LEVEL SECURITY;
-ALTER TABLE products DISABLE ROW LEVEL SECURITY;
-ALTER TABLE sales DISABLE ROW LEVEL SECURITY;
-ALTER TABLE installments DISABLE ROW LEVEL SECURITY;
-ALTER TABLE cash_flow DISABLE ROW LEVEL SECURITY;
-
--- 6. CRIAR ADMIN (Se não existir)
+-- 6. CRIAR ADMIN PADRÃO
 INSERT INTO users (email, senha, nome, perfil, ativo, comissao_porcentagem)
 VALUES ('admin@cla.com', '123456', 'Administrador', 'admin', true, 0)
 ON CONFLICT (email) DO NOTHING;
-
--- FIM DO SCRIPT --
 `;
 
-  // --- SCRIPT 2: CORREÇÃO (ADD COLUNAS) ---
-  const fixSQL = `
--- SCRIPT DE CORREÇÃO (Adiciona colunas faltantes) --
+  // --- SCRIPT 2: CORREÇÃO DE POLÍTICAS ---
+  const fixRLSSQL = `
+-- SCRIPT: CORRIGIR POLÍTICAS RLS (ERRO 42501) --
+
+BEGIN;
+
+-- 1. Garantir que RLS está ATIVO
+ALTER TABLE IF EXISTS users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS clients ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS products ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS sales ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS installments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS cash_flow ENABLE ROW LEVEL SECURITY;
+
+-- 2. Limpar políticas antigas
 DO $$
 BEGIN
-    -- CLIENTS
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'clients' AND column_name = 'foto_url') THEN
-        ALTER TABLE clients ADD COLUMN foto_url text;
-    END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'clients' AND column_name = 'is_mumbuca') THEN
-        ALTER TABLE clients ADD COLUMN is_mumbuca boolean DEFAULT false;
-    END IF;
-
-    -- SALES
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'sales' AND column_name = 'is_mumbuca') THEN
-        ALTER TABLE sales ADD COLUMN is_mumbuca boolean DEFAULT false;
-    END IF;
+    DROP POLICY IF EXISTS "Public Access" ON users;
+    DROP POLICY IF EXISTS "Public Access" ON clients;
+    DROP POLICY IF EXISTS "Public Access" ON products;
+    DROP POLICY IF EXISTS "Public Access" ON sales;
+    DROP POLICY IF EXISTS "Public Access" ON installments;
+    DROP POLICY IF EXISTS "Public Access" ON cash_flow;
     
-    -- USERS
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'comissao_porcentagem') THEN
-        ALTER TABLE users ADD COLUMN comissao_porcentagem numeric DEFAULT 0;
-    END IF;
+    DROP POLICY IF EXISTS "App Access" ON users;
+    DROP POLICY IF EXISTS "App Access" ON clients;
+    DROP POLICY IF EXISTS "App Access" ON products;
+    DROP POLICY IF EXISTS "App Access" ON sales;
+    DROP POLICY IF EXISTS "App Access" ON installments;
+    DROP POLICY IF EXISTS "App Access" ON cash_flow;
 END $$;
+
+-- 3. Recriar Policies Permissivas
+CREATE POLICY "App Access" ON users FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "App Access" ON clients FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "App Access" ON products FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "App Access" ON sales FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "App Access" ON installments FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "App Access" ON cash_flow FOR ALL USING (true) WITH CHECK (true);
+
+-- 4. Garantir Permissões
+GRANT ALL ON ALL TABLES IN SCHEMA public TO postgres, anon, authenticated, service_role;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO postgres, anon, authenticated, service_role;
+
+COMMIT;
 `;
 
   const copyToClipboard = () => {
     let textToCopy = installSQL;
-    if (activeTab === 'fix') textToCopy = fixSQL;
+    if (activeTab === 'rls') textToCopy = fixRLSSQL;
     
     navigator.clipboard.writeText(textToCopy);
     setCopied(true);
@@ -177,12 +209,9 @@ END $$;
         </div>
 
         <Card className="bg-[#2E2E2E] border-l-4 border-blue-500">
-          <h3 className="text-white font-bold text-lg mb-2">Instalação para Novo Projeto</h3>
+          <h3 className="text-white font-bold text-lg mb-2">Correção de Banco & RLS</h3>
           <p className="text-gray-300 text-sm mb-2">
-             Como você criou um <strong>banco de dados novo</strong>, use a opção <strong>INSTALAÇÃO ZERO</strong>.
-          </p>
-          <p className="text-gray-300 text-sm">
-             Este script cria todas as tabelas e configura o armazenamento. Ele contém proteções (ON CONFLICT) para não dar erro se você rodar mais de uma vez.
+             Atualizado: Agora inclui configurações para <strong>Exclusão em Cascata</strong> (previne erros ao apagar vendas).
           </p>
         </Card>
 
@@ -192,15 +221,15 @@ END $$;
             onClick={() => setActiveTab('install')}
             className={`flex-1 py-3 rounded-lg text-xs font-bold transition-colors flex flex-col items-center gap-1 ${activeTab === 'install' ? 'bg-blue-600 text-white ring-2 ring-blue-500/50' : 'bg-[#333] text-gray-400 hover:bg-[#404040]'}`}
           >
-            <span>🚀 INSTALAÇÃO ZERO</span>
-            <span className="text-[9px] font-normal opacity-70">Para banco novo</span>
+            <span>🚀 INSTALAÇÃO COMPLETA</span>
+            <span className="text-[9px] font-normal opacity-70">Estrutura + Cascades</span>
           </button>
           <button 
-            onClick={() => setActiveTab('fix')}
-            className={`flex-1 py-3 rounded-lg text-xs font-bold transition-colors flex flex-col items-center gap-1 ${activeTab === 'fix' ? 'bg-[#FF7A00] text-white ring-2 ring-orange-500/50' : 'bg-[#333] text-gray-400 hover:bg-[#404040]'}`}
+            onClick={() => setActiveTab('rls')}
+            className={`flex-1 py-3 rounded-lg text-xs font-bold transition-colors flex flex-col items-center gap-1 ${activeTab === 'rls' ? 'bg-green-600 text-white ring-2 ring-green-500/50' : 'bg-[#333] text-gray-400 hover:bg-[#404040]'}`}
           >
-            <span>🛠️ CORREÇÃO</span>
-            <span className="text-[9px] font-normal opacity-70">Apenas atualizações</span>
+            <span>🛡️ CORRIGIR ERROS</span>
+            <span className="text-[9px] font-normal opacity-70">Libera Permissões</span>
           </button>
         </div>
 
@@ -218,7 +247,7 @@ END $$;
           </div>
           <textarea 
             readOnly
-            value={activeTab === 'install' ? installSQL : fixSQL}
+            value={activeTab === 'install' ? installSQL : fixRLSSQL}
             className="w-full h-80 bg-[#111] text-green-400 font-mono text-xs p-4 rounded-b-xl border border-white/10 focus:outline-none resize-none"
           />
         </div>
