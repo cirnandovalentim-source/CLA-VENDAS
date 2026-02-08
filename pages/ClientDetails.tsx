@@ -110,12 +110,18 @@ const ClientDetails: React.FC = () => {
 
       const remaining = Math.max(0, currentSale.valor_total - totalPaid);
 
+      // 3. Determine Description
+      let description = currentSale.descricao || "Produtos Diversos";
+      if (type === 'INSTALLMENT') {
+          description = `Parc. ${dataItem.numero_parcela} - ${description}`;
+      }
+
       setReceiptData({
           type,
           data: dataItem,
           totalValue: currentSale.valor_total,
           remaining: remaining,
-          description: "Produtos Diversos / Kit",
+          description: description,
           history: history
       });
   };
@@ -308,6 +314,9 @@ const ClientDetails: React.FC = () => {
   const totalBought = sales.filter(s => s.status !== 'DEVOLVIDO').reduce((acc, s) => acc + s.valor_total, 0);
   const allInstallments: Installment[] = (Object.values(installmentsMap) as Installment[][]).reduce((acc, val) => acc.concat(val), [] as Installment[]);
   const totalDebt = allInstallments.filter(i => !i.pago).reduce((acc, i) => acc + i.valor, 0);
+
+  // Difference Calc for Modal
+  const payDiff = payInstallment ? Number((payInstallment.valor - parseFloat(paymentAmount || '0')).toFixed(2)) : 0;
 
   if (!client) return <div className="p-5 text-center text-gray-500">Carregando...</div>;
 
@@ -521,6 +530,19 @@ const ClientDetails: React.FC = () => {
         <div className="text-center space-y-4">
            <p className="text-gray-600 dark:text-gray-300">Confirmar recebimento?</p>
            <Input label="Valor Recebido" type="number" value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} className="text-center font-bold text-xl text-green-600 dark:text-green-500" />
+           
+           {/* Feedback Logic */}
+           {payDiff > 0 && (
+               <div className="mt-2 text-xs bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-2 rounded">
+                   Faltam <strong>R$ {payDiff.toFixed(2)}</strong>. Este valor será somado à próxima parcela (ou criado uma nova).
+               </div>
+           )}
+           {payDiff < 0 && (
+               <div className="mt-2 text-xs bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 p-2 rounded">
+                   Pagou <strong>R$ {Math.abs(payDiff).toFixed(2)}</strong> a mais. Este valor será descontado da próxima parcela.
+               </div>
+           )}
+
            <div className="grid grid-cols-2 gap-3 pt-2">
              <Button variant="secondary" onClick={() => setPayInstallment(null)}>Cancelar</Button>
              <Button onClick={handlePay} isLoading={loading} className="bg-green-600">Confirmar</Button>

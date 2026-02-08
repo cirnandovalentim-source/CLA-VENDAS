@@ -9,7 +9,7 @@ const Setup: React.FC = () => {
   const [copied, setCopied] = useState(false);
   const [activeTab, setActiveTab] = useState<'install' | 'rls'>('install');
 
-  // --- SCRIPT 1: INSTALAÇÃO LIMPA (ATUALIZADO COM CASCADES) ---
+  // --- SCRIPT 1: INSTALAÇÃO LIMPA (ATUALIZADO COM CASCADES E DESCRICAO) ---
   const installSQL = `
 -- SCRIPT DE INSTALAÇÃO (VERSÃO CORRIGIDA) --
 -- Garante a limpeza correta de dados ao excluir registros --
@@ -62,6 +62,7 @@ create table if not exists sales (
   data_venda timestamptz default now(),
   status text default 'ABERTA',
   is_mumbuca boolean default false,
+  descricao text, -- Nome dos produtos
   created_at timestamptz default now()
 );
 
@@ -137,13 +138,17 @@ VALUES ('admin@cla.com', '123456', 'Administrador', 'admin', true, 0)
 ON CONFLICT (email) DO NOTHING;
 `;
 
-  // --- SCRIPT 2: CORREÇÃO DE POLÍTICAS ---
+  // --- SCRIPT 2: CORREÇÃO DE POLÍTICAS E COLUNAS ---
   const fixRLSSQL = `
--- SCRIPT: CORRIGIR POLÍTICAS RLS (ERRO 42501) --
+-- SCRIPT: CORRIGIR POLÍTICAS E COLUNAS --
 
 BEGIN;
 
--- 1. Garantir que RLS está ATIVO
+-- 1. Garantir Colunas Novas
+ALTER TABLE sales ADD COLUMN IF NOT EXISTS descricao text;
+ALTER TABLE sales ADD COLUMN IF NOT EXISTS is_mumbuca boolean default false;
+
+-- 2. Garantir que RLS está ATIVO
 ALTER TABLE IF EXISTS users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS clients ENABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS products ENABLE ROW LEVEL SECURITY;
@@ -151,7 +156,7 @@ ALTER TABLE IF EXISTS sales ENABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS installments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS cash_flow ENABLE ROW LEVEL SECURITY;
 
--- 2. Limpar políticas antigas
+-- 3. Limpar políticas antigas
 DO $$
 BEGIN
     DROP POLICY IF EXISTS "Public Access" ON users;
@@ -169,7 +174,7 @@ BEGIN
     DROP POLICY IF EXISTS "App Access" ON cash_flow;
 END $$;
 
--- 3. Recriar Policies Permissivas
+-- 4. Recriar Policies Permissivas
 CREATE POLICY "App Access" ON users FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "App Access" ON clients FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "App Access" ON products FOR ALL USING (true) WITH CHECK (true);
@@ -177,7 +182,7 @@ CREATE POLICY "App Access" ON sales FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "App Access" ON installments FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "App Access" ON cash_flow FOR ALL USING (true) WITH CHECK (true);
 
--- 4. Garantir Permissões
+-- 5. Garantir Permissões
 GRANT ALL ON ALL TABLES IN SCHEMA public TO postgres, anon, authenticated, service_role;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO postgres, anon, authenticated, service_role;
 
@@ -211,7 +216,7 @@ COMMIT;
         <Card className="bg-[#2E2E2E] border-l-4 border-blue-500">
           <h3 className="text-white font-bold text-lg mb-2">Correção de Banco & RLS</h3>
           <p className="text-gray-300 text-sm mb-2">
-             Atualizado: Agora inclui configurações para <strong>Exclusão em Cascata</strong> (previne erros ao apagar vendas).
+             Atualizado: Inclui coluna para descrição detalhada dos produtos e correções de permissão.
           </p>
         </Card>
 
@@ -222,14 +227,14 @@ COMMIT;
             className={`flex-1 py-3 rounded-lg text-xs font-bold transition-colors flex flex-col items-center gap-1 ${activeTab === 'install' ? 'bg-blue-600 text-white ring-2 ring-blue-500/50' : 'bg-[#333] text-gray-400 hover:bg-[#404040]'}`}
           >
             <span>🚀 INSTALAÇÃO COMPLETA</span>
-            <span className="text-[9px] font-normal opacity-70">Estrutura + Cascades</span>
+            <span className="text-[9px] font-normal opacity-70">Zera e Cria Tudo</span>
           </button>
           <button 
             onClick={() => setActiveTab('rls')}
             className={`flex-1 py-3 rounded-lg text-xs font-bold transition-colors flex flex-col items-center gap-1 ${activeTab === 'rls' ? 'bg-green-600 text-white ring-2 ring-green-500/50' : 'bg-[#333] text-gray-400 hover:bg-[#404040]'}`}
           >
             <span>🛡️ CORRIGIR ERROS</span>
-            <span className="text-[9px] font-normal opacity-70">Libera Permissões</span>
+            <span className="text-[9px] font-normal opacity-70">Add Colunas + Permissões</span>
           </button>
         </div>
 

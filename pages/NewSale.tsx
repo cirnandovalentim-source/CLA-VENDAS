@@ -177,13 +177,17 @@ const NewSale: React.FC = () => {
 
     setLoading(true);
     try {
+      // 3. Generate Description
+      const description = cart.map(item => `${item.quantity}x ${item.nome}`).join(', ');
+
       await dataService.createSale({
         cliente_id: selectedClient.id,
         vendedor_id: session.id,
         valor_total: cartTotal,
         qtd_parcelas: installmentsCount,
         data_venda: new Date().toISOString(),
-        is_mumbuca: isMumbuca
+        is_mumbuca: isMumbuca,
+        descricao: description
       }, generatedInstallments);
       
       // Success Feedback
@@ -192,9 +196,8 @@ const NewSale: React.FC = () => {
       console.error("Erro venda:", e);
       let msg = e.message || "Erro desconhecido";
       
-      // Helpful message for missing column error
-      if (msg.includes('is_mumbuca') && msg.includes('does not exist')) {
-          msg = "Erro no Banco de Dados: Coluna 'Mumbuca' não existe. Vá em Configurações > Banco de Dados e execute o Script de Correção.";
+      if (msg.includes('descricao') && msg.includes('does not exist')) {
+          msg = "Erro no Banco de Dados: Coluna 'Descrição' não existe. Vá em Configurações > Banco de Dados > Corrigir Erros.";
       }
       
       alert(`Falha ao finalizar venda:\n${msg}`);

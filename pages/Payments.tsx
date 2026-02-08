@@ -139,6 +139,9 @@ const Payments: React.FC = () => {
   const cashSaidas = filteredCash.filter(c => c.tipo === 'SAIDA').reduce((acc, c) => acc + c.valor, 0);
   const cashSaldo = cashEntradas - cashSaidas;
 
+  // Logic to show adjustment message
+  const difference = confirmItem ? Number((confirmItem.valor - parseFloat(paymentAmount || '0')).toFixed(2)) : 0;
+
   return (
     <div className="p-5 animate-fade-in pb-24">
       {/* Tabs */}
@@ -377,9 +380,18 @@ const Payments: React.FC = () => {
                         onChange={(e) => setPaymentAmount(e.target.value)}
                         className="text-center font-bold text-xl text-green-600 dark:text-green-500"
                      />
-                     <p className="text-[10px] text-gray-500 mt-2 text-center">
-                        * Se o valor for diferente, a diferença será somada ou descontada na próxima parcela.
-                     </p>
+                     
+                     {/* Feedback Logic */}
+                     {difference > 0 && (
+                         <div className="mt-2 text-xs bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-2 rounded">
+                             Faltam <strong>R$ {difference.toFixed(2)}</strong>. Este valor será somado à próxima parcela (ou criado uma nova).
+                         </div>
+                     )}
+                     {difference < 0 && (
+                         <div className="mt-2 text-xs bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 p-2 rounded">
+                             Pagou <strong>R$ {Math.abs(difference).toFixed(2)}</strong> a mais. Este valor será descontado da próxima parcela.
+                         </div>
+                     )}
                  </div>
                </>
              )}

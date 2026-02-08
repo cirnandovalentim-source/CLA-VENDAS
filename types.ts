@@ -45,6 +45,7 @@ export interface Sale {
   status: SaleStatus;
   cliente_nome?: string; // Helper for UI
   is_mumbuca?: boolean; // Nova flag para Moeda Social
+  descricao?: string; // Lista de produtos (Ex: "2x Cama, 1x Mesa")
 }
 
 export interface Installment {

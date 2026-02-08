@@ -1,7 +1,7 @@
 
 import { User, Client, Product, Sale, Installment, CashEntry, SaleStatus, DailyReport } from '../types';
 import { supabase, isSupabaseConfigured } from './supabaseClient';
-import { startOfMonth, endOfMonth, eachDayOfInterval, format, isSameDay, startOfDay, endOfDay } from 'date-fns';
+import { startOfMonth, endOfMonth, eachDayOfInterval, format, isSameDay, startOfDay, endOfDay, addMonths } from 'date-fns';
 import { v4 as uuidv4 } from 'uuid';
 
 // --- MOCK DATA (Fallback) ---
@@ -747,113 +747,134 @@ const getDueInstallments = async (): Promise<(Installment & { cliente_nome: stri
 };
 
 const payInstallment = async (installmentId: string, vendedorId: string, actualAmountPaid?: number): Promise<void> => {
+    const processPaymentLogic = async (inst: Installment, paidValue: number) => {
+        const difference = Number((inst.valor - paidValue).toFixed(2));
+        
+        // 1. Mark Current Installment as Paid with the ACTUAL amount paid
+        // This effectively changes the record, but keeps the Total Sale calculation consistent 
+        // if we assume "Original Debt" was dynamic.
+        if (isSupabaseConfigured) {
+            await supabase.from('installments').update({ 
+                pago: true, 
+                data_pagamento: new Date().toISOString(),
+                valor: paidValue 
+            }).eq('id', inst.id);
+            
+            await supabase.from('cash_flow').insert([{ 
+                tipo: 'ENTRADA', 
+                valor: paidValue, 
+                descricao: `Pagamento Parcela ${inst.numero_parcela}`, 
+                vendedor_id: vendedorId, 
+                venda_id: inst.venda_id,
+                data: new Date().toISOString() 
+            }]);
+        } else {
+            // Mock Update
+            const installments = getStorage<Installment[]>('installments', []);
+            const idx = installments.findIndex(i => i.id === inst.id);
+            if (idx > -1) {
+                installments[idx] = { ...installments[idx], pago: true, data_pagamento: new Date().toISOString(), valor: paidValue };
+                setStorage('installments', installments);
+                const cash = getStorage<CashEntry[]>('cash', []);
+                cash.push({ 
+                    id: uuidv4(), data: new Date().toISOString(), tipo: 'ENTRADA', valor: paidValue, 
+                    descricao: `Pagamento Parcela ${inst.numero_parcela}`, vendedor_id: vendedorId, venda_id: inst.venda_id 
+                });
+                setStorage('cash', cash);
+            }
+        }
+
+        // 2. Handle Difference (Carry Over or Create New)
+        if (Math.abs(difference) > 0.01) {
+            let nextInstallment: Installment | null = null;
+
+            if (isSupabaseConfigured) {
+                const { data } = await supabase.from('installments')
+                    .select('*')
+                    .eq('venda_id', inst.venda_id)
+                    .gt('numero_parcela', inst.numero_parcela)
+                    .order('numero_parcela')
+                    .limit(1)
+                    .maybeSingle();
+                nextInstallment = data;
+            } else {
+                const allMock = getStorage<Installment[]>('installments', []);
+                nextInstallment = allMock
+                    .filter(i => i.venda_id === inst.venda_id && i.numero_parcela > inst.numero_parcela)
+                    .sort((a,b) => a.numero_parcela - b.numero_parcela)[0] || null;
+            }
+
+            if (nextInstallment) {
+                // If there is a next installment, adjust it (add positive diff, subtract negative diff)
+                const newNextValue = Number((nextInstallment.valor + difference).toFixed(2));
+                if (isSupabaseConfigured) {
+                    await supabase.from('installments').update({ valor: newNextValue }).eq('id', nextInstallment.id);
+                } else {
+                    const allMock = getStorage<Installment[]>('installments', []);
+                    const nIdx = allMock.findIndex(i => i.id === nextInstallment!.id);
+                    if (nIdx > -1) {
+                        allMock[nIdx].valor = newNextValue;
+                        setStorage('installments', allMock);
+                    }
+                }
+            } else if (difference > 0) {
+                // LAST INSTALLMENT + DEBT (Underpaid) -> Create New Installment
+                const newInstallment = {
+                    venda_id: inst.venda_id,
+                    numero_parcela: inst.numero_parcela + 1,
+                    valor: difference,
+                    data_vencimento: addMonths(new Date(inst.data_vencimento), 1).toISOString(),
+                    pago: false,
+                    data_pagamento: null
+                };
+
+                if (isSupabaseConfigured) {
+                    await supabase.from('installments').insert([newInstallment]);
+                } else {
+                    const allMock = getStorage<Installment[]>('installments', []);
+                    setStorage('installments', [...allMock, { ...newInstallment, id: uuidv4() }]);
+                }
+            }
+            // If Last Installment + Overpaid (difference < 0), we just accept it as extra revenue (tip) or it closes the sale.
+        }
+
+        // 3. Update Sale Status
+        if (isSupabaseConfigured) {
+             const { data: allInst } = await supabase.from('installments').select('pago').eq('venda_id', inst.venda_id);
+             if (allInst) {
+                 const allPaid = allInst.every((i: any) => i.pago);
+                 const somePaid = allInst.some((i: any) => i.pago);
+                 let status: SaleStatus = 'ABERTA';
+                 if (allPaid) status = 'QUITADA';
+                 else if (somePaid) status = 'PARCIAL';
+                 await supabase.from('sales').update({ status }).eq('id', inst.venda_id);
+             }
+        } else {
+            const allMock = getStorage<Installment[]>('installments', []);
+            const saleInsts = allMock.filter(i => i.venda_id === inst.venda_id);
+            const allPaid = saleInsts.every(i => i.pago);
+            const somePaid = saleInsts.some(i => i.pago);
+            
+            const sales = getStorage<Sale[]>('sales', []);
+            const sIdx = sales.findIndex(s => s.id === inst.venda_id);
+            if (sIdx > -1) {
+                sales[sIdx].status = allPaid ? 'QUITADA' : somePaid ? 'PARCIAL' : 'ABERTA';
+                setStorage('sales', sales);
+            }
+        }
+    };
+
     if (isSupabaseConfigured) {
         const { data: inst } = await supabase.from('installments').select('*').eq('id', installmentId).single();
         if (!inst || inst.pago) return;
-
-        const paidValue = actualAmountPaid !== undefined ? actualAmountPaid : inst.valor;
-        // Fix Floating Point Precision Issue
-        const difference = Number((inst.valor - paidValue).toFixed(2));
-
-        await supabase.from('installments').update({ 
-            pago: true, 
-            data_pagamento: new Date().toISOString(),
-            valor: paidValue 
-        }).eq('id', installmentId);
-        
-        await supabase.from('cash_flow').insert([{ 
-            tipo: 'ENTRADA', 
-            valor: paidValue, 
-            descricao: `Pagamento Parcela ${inst.numero_parcela}`, 
-            vendedor_id: vendedorId, 
-            venda_id: inst.venda_id,
-            data: new Date().toISOString() 
-        }]);
-
-        if (Math.abs(difference) > 0.01) {
-            const { data: next } = await supabase
-                .from('installments')
-                .select('*')
-                .eq('venda_id', inst.venda_id)
-                .gt('numero_parcela', inst.numero_parcela)
-                .order('numero_parcela')
-                .limit(1)
-                .single();
-            if (next) {
-                await supabase.from('installments').update({
-                    valor: Number((next.valor + difference).toFixed(2))
-                }).eq('id', next.id);
-            }
-        }
-         
-        const { data: allInst } = await supabase.from('installments').select('pago').eq('venda_id', inst.venda_id);
-        if (allInst) {
-             const allPaid = allInst.every((i: any) => i.pago);
-             const somePaid = allInst.some((i: any) => i.pago);
-             let status: SaleStatus = 'ABERTA';
-             if (allPaid) status = 'QUITADA';
-             else if (somePaid) status = 'PARCIAL';
-             await supabase.from('sales').update({ status }).eq('id', inst.venda_id);
-        }
-        return;
+        await processPaymentLogic(inst, actualAmountPaid !== undefined ? actualAmountPaid : inst.valor);
+    } else {
+        await delay(300);
+        const installments = getStorage<Installment[]>('installments', []);
+        const inst = installments.find(i => i.id === installmentId);
+        if (!inst || inst.pago) return;
+        await processPaymentLogic(inst, actualAmountPaid !== undefined ? actualAmountPaid : inst.valor);
     }
-
-    await delay(500);
-    let installments = getStorage<Installment[]>('installments', []);
-    let sales = getStorage<Sale[]>('sales', []);
-    let cash = getStorage<CashEntry[]>('cash', []);
-
-    const instIndex = installments.findIndex(i => i.id === installmentId);
-    if (instIndex === -1) return;
-    const installment = installments[instIndex];
-    if (installment.pago) return;
-
-    const paidValue = actualAmountPaid !== undefined ? actualAmountPaid : installment.valor;
-    const difference = Number((installment.valor - paidValue).toFixed(2));
-
-    installments[instIndex] = { 
-        ...installment, 
-        pago: true, 
-        data_pagamento: new Date().toISOString(),
-        valor: paidValue
-    };
-
-    cash.push({ 
-        id: uuidv4(), 
-        data: new Date().toISOString(), 
-        tipo: 'ENTRADA', 
-        valor: paidValue, 
-        descricao: `Pagamento Parcela ${installment.numero_parcela}`, 
-        vendedor_id: vendedorId, 
-        venda_id: installment.venda_id
-    });
-    
-    if (Math.abs(difference) > 0.01) {
-        const nextInstallments = installments
-            .map((inst, idx) => ({ ...inst, originalIndex: idx }))
-            .filter(i => i.venda_id === installment.venda_id && i.numero_parcela > installment.numero_parcela && !i.pago)
-            .sort((a,b) => a.numero_parcela - b.numero_parcela);
-        
-        if (nextInstallments.length > 0) {
-            const nextTarget = nextInstallments[0];
-            installments[nextTarget.originalIndex] = {
-                ...installments[nextTarget.originalIndex],
-                valor: Number((installments[nextTarget.originalIndex].valor + difference).toFixed(2))
-            };
-        }
-    }
-
-    const saleIndex = sales.findIndex(s => s.id === installment.venda_id);
-    if (saleIndex !== -1) {
-       const saleInsts = installments.filter(i => i.venda_id === installment.venda_id);
-       const allPaid = saleInsts.every(i => i.pago);
-       const somePaid = saleInsts.some(i => i.pago);
-       sales[saleIndex].status = allPaid ? 'QUITADA' : somePaid ? 'PARCIAL' : 'ABERTA';
-    }
-
-    setStorage('installments', installments);
-    setStorage('sales', sales);
-    setStorage('cash', cash);
 };
 
 const addExpense = async (description: string, value: number, vendedorId: string): Promise<void> => {
