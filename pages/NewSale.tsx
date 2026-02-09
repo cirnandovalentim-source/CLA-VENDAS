@@ -22,6 +22,12 @@ const NewSale: React.FC = () => {
   // Sale State
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
+  
+  // Payment Logic State
+  const [paymentType, setPaymentType] = useState<'AVISTA' | 'PARCELADO'>('PARCELADO');
+  const [calcMethod, setCalcMethod] = useState<'QTD' | 'VALOR'>('QTD'); // QTD = Escolher 1x, 2x... | VALOR = Escolher R$ por mês
+  const [targetInstallmentValue, setTargetInstallmentValue] = useState(''); // Valor alvo da parcela
+
   const [installmentsCount, setInstallmentsCount] = useState(1);
   const [generatedInstallments, setGeneratedInstallments] = useState<Omit<Installment, 'id' | 'venda_id'>[]>([]);
   const [loading, setLoading] = useState(false);
@@ -102,7 +108,12 @@ const NewSale: React.FC = () => {
     setCart(prev => prev.filter(p => p.id !== productId));
   };
 
-  const cartTotal = cart.reduce((acc, item) => acc + (item.valor_parcelado * item.quantity), 0);
+  // Calculations for Totals
+  const cartTotalAvista = cart.reduce((acc, item) => acc + (item.valor_avista * item.quantity), 0);
+  const cartTotalParcelado = cart.reduce((acc, item) => acc + (item.valor_parcelado * item.quantity), 0);
+  
+  // Active Total based on Payment Type
+  const activeTotal = paymentType === 'AVISTA' ? cartTotalAvista : cartTotalParcelado;
 
   // -- STEP 2.5: New Product on the fly --
   const handleOpenNewProduct = () => {
@@ -133,32 +144,84 @@ const NewSale: React.FC = () => {
       }
   };
 
-  // -- STEP 3: Installments --
+  // -- STEP 3: Installments Logic --
+  
+  // Effect: Auto-calculate installments count if user sets a Target Value
+  useEffect(() => {
+     if (step === 3 && paymentType === 'PARCELADO' && calcMethod === 'VALOR') {
+         const val = parseFloat(targetInstallmentValue);
+         if (val > 0) {
+             const count = Math.ceil(activeTotal / val);
+             // Limit between 1 and 24 to avoid crashes
+             const safeCount = Math.max(1, Math.min(count, 24));
+             setInstallmentsCount(safeCount);
+         }
+     }
+  }, [targetInstallmentValue, activeTotal, paymentType, calcMethod, step]);
+
+  // Effect: Reset to 1 installment if AVISTA
+  useEffect(() => {
+      if (paymentType === 'AVISTA') {
+          setInstallmentsCount(1);
+      }
+  }, [paymentType]);
+
   const generateInstallments = () => {
     const list: Omit<Installment, 'id' | 'venda_id'>[] = [];
-    const baseValue = Math.floor((cartTotal / installmentsCount) * 100) / 100;
-    const remainder = Math.round((cartTotal - (baseValue * installmentsCount)) * 100) / 100;
-    
     const today = new Date();
 
-    for (let i = 0; i < installmentsCount; i++) {
-      let val = baseValue;
-      if (i === installmentsCount - 1) val += remainder;
+    // Logic 1: À Vista or Parcelado by Quantity (Even split)
+    if (paymentType === 'AVISTA' || (paymentType === 'PARCELADO' && calcMethod === 'QTD')) {
+        const baseValue = Math.floor((activeTotal / installmentsCount) * 100) / 100;
+        const remainder = Math.round((activeTotal - (baseValue * installmentsCount)) * 100) / 100;
+        
+        for (let i = 0; i < installmentsCount; i++) {
+            let val = baseValue;
+            if (i === installmentsCount - 1) val += remainder;
 
-      list.push({
-        numero_parcela: i + 1,
-        valor: val,
-        data_vencimento: addMonths(today, i + 1).toISOString(),
-        pago: false
-      });
+            list.push({
+                numero_parcela: i + 1,
+                valor: val,
+                data_vencimento: addMonths(today, i + 1).toISOString(),
+                pago: false
+            });
+        }
+    } 
+    // Logic 2: Parcelado by Value (Fixed Installment Value)
+    else if (paymentType === 'PARCELADO' && calcMethod === 'VALOR') {
+        const fixedVal = parseFloat(targetInstallmentValue) || 0;
+        let currentTotal = activeTotal;
+
+        if (fixedVal <= 0) return; // Invalid input
+
+        for (let i = 0; i < installmentsCount; i++) {
+            let val = fixedVal;
+            // If it's the last one, it takes the remaining (can be smaller)
+            if (i === installmentsCount - 1) {
+                val = Math.round(currentTotal * 100) / 100;
+            }
+            
+            // Safety check: if remaining is 0 or less, break (should happen at last iteration)
+            if (val <= 0.01 && i > 0) break; 
+
+            currentTotal -= val;
+
+            list.push({
+                numero_parcela: i + 1,
+                valor: val,
+                data_vencimento: addMonths(today, i + 1).toISOString(),
+                pago: false
+            });
+        }
     }
+    
     setGeneratedInstallments(list);
   };
 
   useEffect(() => {
     if (step === 3) generateInstallments();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [installmentsCount, step]);
+  }, [installmentsCount, step, paymentType, activeTotal]);
 
   const handleFinishSale = async () => {
     // 2. Explicit Validation
@@ -183,7 +246,7 @@ const NewSale: React.FC = () => {
       await dataService.createSale({
         cliente_id: selectedClient.id,
         vendedor_id: session.id,
-        valor_total: cartTotal,
+        valor_total: activeTotal,
         qtd_parcelas: installmentsCount,
         data_venda: new Date().toISOString(),
         is_mumbuca: isMumbuca,
@@ -292,7 +355,10 @@ const NewSale: React.FC = () => {
                   <div key={p.id} className="bg-white dark:bg-[#1E1E1E] p-4 rounded-3xl flex justify-between items-center border border-gray-100 dark:border-[#333] shadow-sm">
                     <div>
                       <p className="text-gray-900 dark:text-white font-bold">{p.nome}</p>
-                      <p className="text-[#FF7A00] font-bold text-sm">R$ {p.valor_parcelado.toFixed(2)}</p>
+                      <div className="flex gap-2">
+                          <p className="text-[#FF7A00] font-bold text-sm">Prazo: R$ {p.valor_parcelado.toFixed(2)}</p>
+                          <p className="text-green-600 font-bold text-sm">Vista: R$ {p.valor_avista.toFixed(2)}</p>
+                      </div>
                     </div>
                     <Button variant="secondary" onClick={() => addToCart(p)} className="!p-3 rounded-2xl">
                       {ICONS.Add}
@@ -309,7 +375,10 @@ const NewSale: React.FC = () => {
                   <div key={item.id} className="flex justify-between items-center mb-3 bg-white dark:bg-[#1E1E1E] p-3 rounded-2xl border border-gray-100 dark:border-[#333]">
                     <span className="text-gray-700 dark:text-gray-300 text-sm font-medium">{item.quantity}x {item.nome}</span>
                     <div className="flex items-center gap-3">
-                      <span className="text-gray-900 dark:text-white font-bold">R$ {(item.valor_parcelado * item.quantity).toFixed(2)}</span>
+                      <div className="text-right">
+                          <p className="text-gray-900 dark:text-white font-bold text-sm">Prazo: R$ {(item.valor_parcelado * item.quantity).toFixed(2)}</p>
+                          <p className="text-green-600 font-bold text-xs">Vista: R$ {(item.valor_avista * item.quantity).toFixed(2)}</p>
+                      </div>
                       <button onClick={() => removeFromCart(item.id)} className="text-red-400 bg-red-50 p-2 rounded-xl hover:bg-red-100 dark:hover:bg-red-900/20 transition-colors">
                         {ICONS.Close}
                       </button>
@@ -317,8 +386,8 @@ const NewSale: React.FC = () => {
                   </div>
                 ))}
                 <div className="mt-4 flex justify-between items-center bg-[#FF7A00]/10 p-4 rounded-2xl border border-[#FF7A00]/20">
-                  <span className="text-[#FF7A00] font-bold">Total Estimado</span>
-                  <span className="text-[#FF7A00] font-black text-xl">R$ {cartTotal.toFixed(2)}</span>
+                  <span className="text-[#FF7A00] font-bold">Total (Prazo)</span>
+                  <span className="text-[#FF7A00] font-black text-xl">R$ {cartTotalParcelado.toFixed(2)}</span>
                 </div>
               </div>
             )}
@@ -327,9 +396,29 @@ const NewSale: React.FC = () => {
 
         {step === 3 && (
            <div className="space-y-6">
-             <Card className="text-center py-8 bg-white dark:bg-[#1E1E1E]">
-               <p className="text-gray-400 text-xs font-bold uppercase mb-1">Valor Total</p>
-               <h2 className="text-4xl font-black text-[#FF7A00] mb-2">R$ {cartTotal.toFixed(2)}</h2>
+             {/* Payment Type Selection */}
+             <div className="flex p-1 bg-white dark:bg-[#1E1E1E] rounded-xl border border-gray-200 dark:border-[#333]">
+                <button 
+                  onClick={() => setPaymentType('PARCELADO')}
+                  className={`flex-1 py-3 text-sm font-bold rounded-lg transition-all flex flex-col items-center gap-1 ${paymentType === 'PARCELADO' ? 'bg-[#FF7A00] text-white shadow-md' : 'text-gray-500'}`}
+                >
+                  <span>PARCELADO</span>
+                  <span className="text-xs opacity-80">R$ {cartTotalParcelado.toFixed(2)}</span>
+                </button>
+                <button 
+                  onClick={() => setPaymentType('AVISTA')}
+                  className={`flex-1 py-3 text-sm font-bold rounded-lg transition-all flex flex-col items-center gap-1 ${paymentType === 'AVISTA' ? 'bg-green-600 text-white shadow-md' : 'text-gray-500'}`}
+                >
+                  <span>À VISTA</span>
+                  <span className="text-xs opacity-80">R$ {cartTotalAvista.toFixed(2)}</span>
+                </button>
+             </div>
+
+             <Card className="text-center py-6 bg-white dark:bg-[#1E1E1E]">
+               <p className="text-gray-400 text-xs font-bold uppercase mb-1">Valor Final da Venda</p>
+               <h2 className={`text-4xl font-black mb-2 ${paymentType === 'AVISTA' ? 'text-green-600' : 'text-[#FF7A00]'}`}>
+                   R$ {activeTotal.toFixed(2)}
+               </h2>
                <div className="inline-block bg-gray-100 dark:bg-[#333] px-3 py-1 rounded-full text-xs text-gray-600 dark:text-gray-300 font-bold">
                   Cliente: {selectedClient?.nome}
                </div>
@@ -354,20 +443,55 @@ const NewSale: React.FC = () => {
                 </div>
              </div>
 
-             <div className="space-y-3">
-               <label className="text-gray-700 dark:text-gray-300 font-bold ml-1">Número de Parcelas</label>
-               <div className="grid grid-cols-4 gap-2">
-                 {[1,2,3,4,5,6,10,12].map(num => (
-                   <button 
-                    key={num}
-                    onClick={() => setInstallmentsCount(num)}
-                    className={`h-12 rounded-2xl font-bold transition-all shadow-sm ${installmentsCount === num ? 'bg-[#FF7A00] text-white shadow-orange-500/30 translate-y-[-2px]' : 'bg-white dark:bg-[#1E1E1E] text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-[#333]'}`}
-                   >
-                     {num}x
-                   </button>
-                 ))}
-               </div>
-             </div>
+             {/* INSTALLMENTS CONFIGURATION */}
+             {paymentType === 'PARCELADO' && (
+                <div className="space-y-3">
+                   <div className="flex justify-between items-center">
+                       <h3 className="text-gray-700 dark:text-gray-300 font-bold">Configurar Parcelas</h3>
+                       <div className="flex bg-gray-200 dark:bg-[#333] rounded-lg p-0.5 text-[10px] font-bold">
+                          <button 
+                             onClick={() => setCalcMethod('QTD')} 
+                             className={`px-2 py-1 rounded-md transition-all ${calcMethod === 'QTD' ? 'bg-white dark:bg-[#555] shadow-sm' : 'text-gray-500'}`}
+                          >
+                             Quantidade
+                          </button>
+                          <button 
+                             onClick={() => setCalcMethod('VALOR')} 
+                             className={`px-2 py-1 rounded-md transition-all ${calcMethod === 'VALOR' ? 'bg-white dark:bg-[#555] shadow-sm' : 'text-gray-500'}`}
+                          >
+                             Valor Fixo
+                          </button>
+                       </div>
+                   </div>
+                   
+                   {calcMethod === 'QTD' ? (
+                       <div className="grid grid-cols-4 gap-2">
+                         {[1,2,3,4,5,6,10,12].map(num => (
+                           <button 
+                            key={num}
+                            onClick={() => setInstallmentsCount(num)}
+                            className={`h-12 rounded-2xl font-bold transition-all shadow-sm ${installmentsCount === num ? 'bg-[#FF7A00] text-white shadow-orange-500/30 translate-y-[-2px]' : 'bg-white dark:bg-[#1E1E1E] text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-[#333]'}`}
+                           >
+                             {num}x
+                           </button>
+                         ))}
+                       </div>
+                   ) : (
+                       <div className="bg-white dark:bg-[#1E1E1E] p-4 rounded-2xl border border-gray-200 dark:border-[#333]">
+                           <Input 
+                              label="Qual valor o cliente quer pagar por mês?"
+                              type="number"
+                              placeholder="Ex: 100.00"
+                              value={targetInstallmentValue}
+                              onChange={(e) => setTargetInstallmentValue(e.target.value)}
+                           />
+                           <p className="text-xs text-gray-500 mt-2 text-center">
+                               Isso gerará aprox. <strong>{installmentsCount}</strong> parcelas.
+                           </p>
+                       </div>
+                   )}
+                </div>
+             )}
 
              <div className="space-y-3 pb-24">
                <h3 className="text-gray-900 dark:text-white font-bold ml-1">Resumo das Parcelas</h3>
