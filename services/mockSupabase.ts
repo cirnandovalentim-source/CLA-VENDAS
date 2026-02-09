@@ -751,8 +751,6 @@ const payInstallment = async (installmentId: string, vendedorId: string, actualA
         const difference = Number((inst.valor - paidValue).toFixed(2));
         
         // 1. Mark Current Installment as Paid with the ACTUAL amount paid
-        // This effectively changes the record, but keeps the Total Sale calculation consistent 
-        // if we assume "Original Debt" was dynamic.
         if (isSupabaseConfigured) {
             await supabase.from('installments').update({ 
                 pago: true, 
@@ -835,30 +833,39 @@ const payInstallment = async (installmentId: string, vendedorId: string, actualA
                     setStorage('installments', [...allMock, { ...newInstallment, id: uuidv4() }]);
                 }
             }
-            // If Last Installment + Overpaid (difference < 0), we just accept it as extra revenue (tip) or it closes the sale.
         }
 
-        // 3. Update Sale Status
+        // 3. Update Sale Status AND Recalculate Total Sale Value (Important!)
         if (isSupabaseConfigured) {
-             const { data: allInst } = await supabase.from('installments').select('pago').eq('venda_id', inst.venda_id);
+             const { data: allInst } = await supabase.from('installments').select('pago, valor').eq('venda_id', inst.venda_id);
              if (allInst) {
                  const allPaid = allInst.every((i: any) => i.pago);
                  const somePaid = allInst.some((i: any) => i.pago);
+                 
+                 // Recalculate Total to match all installments (handles interest/discount)
+                 const newTotal = allInst.reduce((acc, curr) => acc + curr.valor, 0);
+
                  let status: SaleStatus = 'ABERTA';
                  if (allPaid) status = 'QUITADA';
                  else if (somePaid) status = 'PARCIAL';
-                 await supabase.from('sales').update({ status }).eq('id', inst.venda_id);
+                 
+                 await supabase.from('sales').update({ 
+                     status,
+                     valor_total: newTotal
+                 }).eq('id', inst.venda_id);
              }
         } else {
             const allMock = getStorage<Installment[]>('installments', []);
             const saleInsts = allMock.filter(i => i.venda_id === inst.venda_id);
             const allPaid = saleInsts.every(i => i.pago);
             const somePaid = saleInsts.some(i => i.pago);
+            const newTotal = saleInsts.reduce((acc, curr) => acc + curr.valor, 0);
             
             const sales = getStorage<Sale[]>('sales', []);
             const sIdx = sales.findIndex(s => s.id === inst.venda_id);
             if (sIdx > -1) {
                 sales[sIdx].status = allPaid ? 'QUITADA' : somePaid ? 'PARCIAL' : 'ABERTA';
+                sales[sIdx].valor_total = newTotal; // Update total
                 setStorage('sales', sales);
             }
         }

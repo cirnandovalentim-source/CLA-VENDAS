@@ -93,7 +93,10 @@ const ClientDetails: React.FC = () => {
             return dateA - dateB;
         });
 
-      let runningBalance = currentSale.valor_total;
+      // CALCULATE DYNAMIC TOTAL (Based on Installments Sum) to handle interest/discounts
+      const dynamicTotal = saleInstallments.reduce((acc, curr) => acc + curr.valor, 0);
+
+      let runningBalance = dynamicTotal;
       const history = paidInstallments.map(inst => {
           runningBalance -= inst.valor;
           return {
@@ -108,7 +111,7 @@ const ClientDetails: React.FC = () => {
         .filter(i => i.pago)
         .reduce((acc, curr) => acc + curr.valor, 0);
 
-      const remaining = Math.max(0, currentSale.valor_total - totalPaid);
+      const remaining = Math.max(0, dynamicTotal - totalPaid);
 
       // 3. Determine Description
       let description = currentSale.descricao || "Produtos Diversos";
@@ -119,7 +122,7 @@ const ClientDetails: React.FC = () => {
       setReceiptData({
           type,
           data: dataItem,
-          totalValue: currentSale.valor_total,
+          totalValue: dynamicTotal,
           remaining: remaining,
           description: description,
           history: history
@@ -311,9 +314,14 @@ const ClientDetails: React.FC = () => {
     }
   };
 
-  const totalBought = sales.filter(s => s.status !== 'DEVOLVIDO').reduce((acc, s) => acc + s.valor_total, 0);
   const allInstallments: Installment[] = (Object.values(installmentsMap) as Installment[][]).reduce((acc, val) => acc.concat(val), [] as Installment[]);
+  
+  // DYNAMIC CALCULATIONS:
+  // Instead of relying on static Sale Value, we calculate based on the actual installments
+  // This ensures that if installments are split/increased, the "Total Bought" reflects it.
+  const totalPaid = allInstallments.filter(i => i.pago).reduce((acc, i) => acc + i.valor, 0);
   const totalDebt = allInstallments.filter(i => !i.pago).reduce((acc, i) => acc + i.valor, 0);
+  const totalBought = totalPaid + totalDebt;
 
   // Difference Calc for Modal
   const payDiff = payInstallment ? Number((payInstallment.valor - parseFloat(paymentAmount || '0')).toFixed(2)) : 0;
@@ -381,6 +389,9 @@ const ClientDetails: React.FC = () => {
               const installments = installmentsMap[sale.id] || [];
               const isExpanded = expandedSale === sale.id;
               const isReturned = sale.status === 'DEVOLVIDO';
+              
+              // Dynamic sale total based on installments
+              const saleDynamicTotal = installments.reduce((acc, i) => acc + i.valor, 0);
 
               return (
                 <div key={sale.id} className={`bg-white dark:bg-[#1E1E1E] rounded-2xl overflow-hidden border transition-colors shadow-sm ${isReturned ? 'border-red-200 dark:border-red-900/30 opacity-70' : 'border-gray-200 dark:border-[#333]'}`}>
@@ -406,7 +417,7 @@ const ClientDetails: React.FC = () => {
                       </div>
                       <div className="text-right">
                          <p className={`font-bold ${isReturned ? 'text-gray-400 line-through' : 'text-[#FF7A00]'}`}>
-                            R$ {sale.valor_total.toFixed(2)}
+                            R$ {saleDynamicTotal.toFixed(2)}
                          </p>
                          <div className="flex justify-end mt-1 text-gray-500">
                            {isExpanded ? ICONS.Up : ICONS.Down}
