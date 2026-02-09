@@ -18,6 +18,7 @@ const NewSale: React.FC = () => {
   
   // Search States
   const [clientSearch, setClientSearch] = useState('');
+  const [productSearch, setProductSearch] = useState(''); // Nova busca de produtos
   
   // Sale State
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
@@ -25,8 +26,8 @@ const NewSale: React.FC = () => {
   
   // Payment Logic State
   const [paymentType, setPaymentType] = useState<'AVISTA' | 'PARCELADO'>('PARCELADO');
-  const [calcMethod, setCalcMethod] = useState<'QTD' | 'VALOR'>('QTD'); // QTD = Escolher 1x, 2x... | VALOR = Escolher R$ por mês
-  const [targetInstallmentValue, setTargetInstallmentValue] = useState(''); // Valor alvo da parcela
+  const [calcMethod, setCalcMethod] = useState<'QTD' | 'VALOR'>('QTD'); 
+  const [targetInstallmentValue, setTargetInstallmentValue] = useState(''); 
 
   const [installmentsCount, setInstallmentsCount] = useState(1);
   const [generatedInstallments, setGeneratedInstallments] = useState<Omit<Installment, 'id' | 'venda_id'>[]>([]);
@@ -44,7 +45,16 @@ const NewSale: React.FC = () => {
     valor_parcelado: ''
   });
 
-  // 1. Session Check (Crucial for standalone pages)
+  // --- ADD ITEM MODAL STATE (New Feature) ---
+  const [isAddItemModalOpen, setIsAddItemModalOpen] = useState(false);
+  const [selectedProductToAdd, setSelectedProductToAdd] = useState<Product | null>(null);
+  const [addItemForm, setAddItemForm] = useState({
+      quantity: 1,
+      custom_avista: '',
+      custom_parcelado: ''
+  });
+
+  // 1. Session Check
   useEffect(() => {
     if (!session) {
         alert("Sessão expirada. Faça login novamente.");
@@ -58,7 +68,6 @@ const NewSale: React.FC = () => {
       setClients(c);
       setProducts(p);
 
-      // Handle pre-selected client from navigation state
       const state = location.state as { client?: Client };
       if (state?.client) {
         setSelectedClient(state.client);
@@ -80,12 +89,16 @@ const NewSale: React.FC = () => {
   const filteredClients = clients.filter(c => {
     const searchNorm = normalizeText(clientSearch);
     const searchPhone = cleanPhone(clientSearch);
-    
     const nameMatch = normalizeText(c.nome).includes(searchNorm);
     const phoneMatch = searchPhone.length > 0 && cleanPhone(c.telefone).includes(searchPhone);
-    
     return nameMatch || phoneMatch;
   });
+
+  // Filtro de Produtos (Novo)
+  const filteredProducts = products.filter(p => 
+     normalizeText(p.nome).includes(normalizeText(productSearch)) ||
+     normalizeText(p.categoria).includes(normalizeText(productSearch))
+  );
 
   // -- STEP 1: Select Client --
   const handleClientSelect = (client: Client) => {
@@ -93,15 +106,52 @@ const NewSale: React.FC = () => {
     setStep(2);
   };
 
-  // -- STEP 2: Products --
-  const addToCart = (product: Product) => {
-    setCart(prev => {
-      const existing = prev.find(p => p.id === product.id);
-      if (existing) {
-        return prev.map(p => p.id === product.id ? { ...p, quantity: p.quantity + 1 } : p);
-      }
-      return [...prev, { ...product, quantity: 1 }];
-    });
+  // -- STEP 2: Product Selection Logic --
+
+  // 2.1 Open Modal to Configure Item
+  const handleInitiateAdd = (product: Product) => {
+      setSelectedProductToAdd(product);
+      setAddItemForm({
+          quantity: 1,
+          custom_avista: product.valor_avista.toString(),
+          custom_parcelado: product.valor_parcelado.toString()
+      });
+      setIsAddItemModalOpen(true);
+  };
+
+  // 2.2 Confirm Add to Cart with Custom Prices
+  const handleConfirmAdd = () => {
+      if (!selectedProductToAdd) return;
+      
+      const qtd = Number(addItemForm.quantity);
+      if (qtd <= 0) return;
+
+      const customAvista = parseFloat(addItemForm.custom_avista) || 0;
+      const customParcelado = parseFloat(addItemForm.custom_parcelado) || 0;
+
+      setCart(prev => {
+        const existing = prev.find(p => p.id === selectedProductToAdd.id);
+        if (existing) {
+          // Se já existe, atualizamos o preço unitário para o novo valor inserido (override) e somamos quantidade
+          return prev.map(p => p.id === selectedProductToAdd.id ? { 
+              ...p, 
+              quantity: p.quantity + qtd,
+              valor_avista: customAvista,
+              valor_parcelado: customParcelado
+          } : p);
+        }
+        // Novo item
+        return [...prev, { 
+            ...selectedProductToAdd, 
+            quantity: qtd,
+            valor_avista: customAvista,
+            valor_parcelado: customParcelado
+        }];
+      });
+
+      setIsAddItemModalOpen(false);
+      setSelectedProductToAdd(null);
+      setProductSearch(''); // Limpa busca após adicionar para facilitar próxima busca
   };
 
   const removeFromCart = (productId: string) => {
@@ -146,20 +196,17 @@ const NewSale: React.FC = () => {
 
   // -- STEP 3: Installments Logic --
   
-  // Effect: Auto-calculate installments count if user sets a Target Value
   useEffect(() => {
      if (step === 3 && paymentType === 'PARCELADO' && calcMethod === 'VALOR') {
          const val = parseFloat(targetInstallmentValue);
          if (val > 0) {
              const count = Math.ceil(activeTotal / val);
-             // Limit between 1 and 24 to avoid crashes
              const safeCount = Math.max(1, Math.min(count, 24));
              setInstallmentsCount(safeCount);
          }
      }
   }, [targetInstallmentValue, activeTotal, paymentType, calcMethod, step]);
 
-  // Effect: Reset to 1 installment if AVISTA
   useEffect(() => {
       if (paymentType === 'AVISTA') {
           setInstallmentsCount(1);
@@ -170,7 +217,6 @@ const NewSale: React.FC = () => {
     const list: Omit<Installment, 'id' | 'venda_id'>[] = [];
     const today = new Date();
 
-    // Logic 1: À Vista or Parcelado by Quantity (Even split)
     if (paymentType === 'AVISTA' || (paymentType === 'PARCELADO' && calcMethod === 'QTD')) {
         const baseValue = Math.floor((activeTotal / installmentsCount) * 100) / 100;
         const remainder = Math.round((activeTotal - (baseValue * installmentsCount)) * 100) / 100;
@@ -187,23 +233,18 @@ const NewSale: React.FC = () => {
             });
         }
     } 
-    // Logic 2: Parcelado by Value (Fixed Installment Value)
     else if (paymentType === 'PARCELADO' && calcMethod === 'VALOR') {
         const fixedVal = parseFloat(targetInstallmentValue) || 0;
         let currentTotal = activeTotal;
 
-        if (fixedVal <= 0) return; // Invalid input
+        if (fixedVal <= 0) return; 
 
         for (let i = 0; i < installmentsCount; i++) {
             let val = fixedVal;
-            // If it's the last one, it takes the remaining (can be smaller)
             if (i === installmentsCount - 1) {
                 val = Math.round(currentTotal * 100) / 100;
             }
-            
-            // Safety check: if remaining is 0 or less, break (should happen at last iteration)
             if (val <= 0.01 && i > 0) break; 
-
             currentTotal -= val;
 
             list.push({
@@ -224,7 +265,6 @@ const NewSale: React.FC = () => {
   }, [installmentsCount, step, paymentType, activeTotal]);
 
   const handleFinishSale = async () => {
-    // 2. Explicit Validation
     if (!session) {
         alert("Erro de autenticação. Faça login novamente.");
         return;
@@ -240,7 +280,6 @@ const NewSale: React.FC = () => {
 
     setLoading(true);
     try {
-      // 3. Generate Description
       const description = cart.map(item => `${item.quantity}x ${item.nome}`).join(', ');
 
       await dataService.createSale({
@@ -253,16 +292,13 @@ const NewSale: React.FC = () => {
         descricao: description
       }, generatedInstallments);
       
-      // Success Feedback
       navigate(ROUTES.SALES);
     } catch (e: any) {
       console.error("Erro venda:", e);
       let msg = e.message || "Erro desconhecido";
-      
       if (msg.includes('descricao') && msg.includes('does not exist')) {
           msg = "Erro no Banco de Dados: Coluna 'Descrição' não existe. Vá em Configurações > Banco de Dados > Corrigir Erros.";
       }
-      
       alert(`Falha ao finalizar venda:\n${msg}`);
     } finally {
       setLoading(false);
@@ -327,7 +363,6 @@ const NewSale: React.FC = () => {
                      <div className="text-center py-10 opacity-70">
                          <div className="text-gray-300 mb-2 flex justify-center scale-150">{ICONS.Search}</div>
                          <p className="text-gray-500 font-medium">Nenhum cliente encontrado.</p>
-                         {clientSearch && <p className="text-xs text-gray-400 mt-1">Tente buscar por outro termo.</p>}
                      </div>
                  )}
              </div>
@@ -346,12 +381,33 @@ const NewSale: React.FC = () => {
                     {ICONS.Add} Cadastrar Novo
                   </button>
               </div>
+
+              {/* SEARCH BAR FOR PRODUCTS */}
+              <div className="relative mb-4">
+                  <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 z-10 pointer-events-none">
+                      {ICONS.Search}
+                  </div>
+                  <Input 
+                    placeholder="Buscar produto..." 
+                    className="pl-10"
+                    value={productSearch}
+                    onChange={(e) => setProductSearch(e.target.value)}
+                  />
+                  {productSearch && (
+                    <button 
+                      onClick={() => setProductSearch('')}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1"
+                    >
+                      {ICONS.Close}
+                    </button>
+                  )}
+              </div>
               
               <div className="space-y-2 pb-6">
                 {products.length === 0 && (
                     <p className="text-gray-500 text-center py-4 text-sm">Nenhum produto cadastrado.</p>
                 )}
-                {products.map(p => (
+                {filteredProducts.map(p => (
                   <div key={p.id} className="bg-white dark:bg-[#1E1E1E] p-4 rounded-3xl flex justify-between items-center border border-gray-100 dark:border-[#333] shadow-sm">
                     <div>
                       <p className="text-gray-900 dark:text-white font-bold">{p.nome}</p>
@@ -360,11 +416,15 @@ const NewSale: React.FC = () => {
                           <p className="text-green-600 font-bold text-sm">Vista: R$ {p.valor_avista.toFixed(2)}</p>
                       </div>
                     </div>
-                    <Button variant="secondary" onClick={() => addToCart(p)} className="!p-3 rounded-2xl">
+                    {/* Changed: Open Modal to Configure Item */}
+                    <Button variant="secondary" onClick={() => handleInitiateAdd(p)} className="!p-3 rounded-2xl">
                       {ICONS.Add}
                     </Button>
                   </div>
                 ))}
+                {filteredProducts.length === 0 && products.length > 0 && (
+                    <p className="text-center text-gray-400 text-sm py-4">Nenhum produto encontrado para "{productSearch}"</p>
+                )}
               </div>
             </div>
 
@@ -527,6 +587,7 @@ const NewSale: React.FC = () => {
         )}
       </div>
 
+      {/* QUICK CREATE PRODUCT MODAL */}
       <Modal isOpen={isProductModalOpen} onClose={() => setIsProductModalOpen(false)} title="Novo Produto Rápido">
          <div className="space-y-4">
             <Input 
@@ -555,6 +616,48 @@ const NewSale: React.FC = () => {
             </div>
             <Button fullWidth onClick={handleSaveNewProduct} isLoading={loading}>
                 Cadastrar e Adicionar
+            </Button>
+         </div>
+      </Modal>
+
+      {/* ADD ITEM WITH CUSTOM PRICE MODAL */}
+      <Modal isOpen={isAddItemModalOpen} onClose={() => setIsAddItemModalOpen(false)} title="Adicionar Item">
+         <div className="space-y-4">
+            <div className="bg-gray-50 dark:bg-[#252525] p-3 rounded-xl mb-2 text-center">
+                <p className="font-bold text-lg text-gray-900 dark:text-white">{selectedProductToAdd?.nome}</p>
+                <p className="text-xs text-gray-500">Ajuste o valor unitário se necessário</p>
+            </div>
+            
+            <div className="grid grid-cols-3 gap-3">
+               <div className="col-span-1">
+                   <Input 
+                       label="Qtd"
+                       type="number"
+                       value={addItemForm.quantity}
+                       onChange={(e) => setAddItemForm(prev => ({ ...prev, quantity: Number(e.target.value) }))}
+                   />
+               </div>
+               <div className="col-span-2">
+                   <Input 
+                       label="Preço Unit. (Prazo)"
+                       type="number"
+                       value={addItemForm.custom_parcelado}
+                       onChange={(e) => setAddItemForm(prev => ({ ...prev, custom_parcelado: e.target.value }))}
+                       className="text-[#FF7A00] font-bold"
+                   />
+               </div>
+            </div>
+            
+            <Input 
+               label="Preço Unit. (À Vista)"
+               type="number"
+               value={addItemForm.custom_avista}
+               onChange={(e) => setAddItemForm(prev => ({ ...prev, custom_avista: e.target.value }))}
+               className="text-green-600 font-bold"
+            />
+            
+            <Button fullWidth onClick={handleConfirmAdd}>
+                Confirmar e Adicionar
             </Button>
          </div>
       </Modal>
