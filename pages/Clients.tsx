@@ -5,13 +5,12 @@ import { ICONS, ROUTES } from '../constants';
 import { Button, Input, Card, Modal } from '../components/ui';
 import { dataService, authService } from '../services/mockSupabase';
 import { isSupabaseConfigured } from '../services/supabaseClient';
-import { Client } from '../types';
+import { Client, User } from '../types';
 
 // Sub-componente para tratar Avatar com Fallback de erro
 const ClientAvatar: React.FC<{ url?: string; name: string }> = ({ url, name }) => {
   const [error, setError] = useState(false);
 
-  // Reseta o erro se a URL mudar
   useEffect(() => {
      setError(false);
   }, [url]);
@@ -103,7 +102,6 @@ const Clients: React.FC = () => {
     setIsDeleteModalOpen(true);
   };
 
-  // --- PHOTO HANDLER ---
   const compressImage = (file: File): Promise<{ base64: string, blob: Blob }> => {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -154,9 +152,7 @@ const Clients: React.FC = () => {
       setProcessingImage(true);
       try {
           const { base64, blob } = await compressImage(file);
-          // Show preview
           setClientForm(prev => ({ ...prev, foto_url: base64 }));
-          // Store blob for upload
           setSelectedFile(new File([blob], file.name, { type: 'image/jpeg' }));
       } catch (err) {
           console.error("Erro ao processar imagem", err);
@@ -177,7 +173,6 @@ const Clients: React.FC = () => {
       let finalClientId = editingId;
       let finalPhotoUrl = clientForm.foto_url || '';
 
-      // 1. CREATE: Se for novo cliente
       if (!editingId) {
           const newClientPayload = {
               nome: clientForm.nome || '',
@@ -186,17 +181,14 @@ const Clients: React.FC = () => {
               bairro: clientForm.bairro || '',
               cidade: clientForm.cidade || '',
               observacoes: clientForm.observacoes || '',
-              // Vendedor ID is handled inside dataService to fallback safely
               vendedor_id: session?.id || '',
               foto_url: isSupabaseConfigured ? '' : finalPhotoUrl,
               is_mumbuca: clientForm.is_mumbuca || false
           };
-
           const newClient = await dataService.createClient(newClientPayload);
           finalClientId = newClient.id;
       }
 
-      // 2. UPLOAD: Se tiver arquivo e tivermos o ID e estivermos Online
       if (selectedFile && finalClientId && isSupabaseConfigured) {
           const publicUrl = await dataService.uploadClientPhoto(selectedFile, finalClientId);
           if (publicUrl) {
@@ -204,7 +196,6 @@ const Clients: React.FC = () => {
           }
       }
 
-      // 3. UPDATE: Se for edição OU se for novo cliente Online (para salvar a URL da foto)
       const shouldUpdate = editingId || (isSupabaseConfigured && selectedFile);
 
       if (finalClientId && shouldUpdate) {
@@ -224,20 +215,7 @@ const Clients: React.FC = () => {
       setIsModalOpen(false);
     } catch (error: any) {
       console.error("Save Client Error:", error);
-      let msg = error.message || "Erro desconhecido";
-      
-      // Mensagens amigáveis para erros comuns de banco de dados
-      if (msg.includes("relation") || msg.includes("does not exist") || msg.includes("column")) {
-          msg = "ERRO DE TABELA: O banco de dados está incompleto.\nVá em Configurações > Setup e use o 'Script de Correção'.";
-      } else if (msg.includes("policy") || msg.includes("RLS")) {
-          msg = "ERRO DE PERMISSÃO: O banco bloqueou a gravação.\nVá em Configurações > Setup e use a opção 'Emergência (Liberar Geral)'.";
-      } else if (msg.includes("foreign key") || msg.includes("uuid")) {
-          msg = "ERRO DE VÍNCULO: Seu usuário local não existe no banco online.\nVá em Configurações > Setup e use a opção 'Emergência (Liberar Geral)'.";
-      } else {
-          msg = `ERRO TÉCNICO:\n${msg}\n\nTente a opção 'Emergência' no Setup.`;
-      }
-
-      alert(msg);
+      alert("Erro ao salvar cliente. Verifique o Setup.");
     } finally {
       setLoading(false);
     }
@@ -257,7 +235,7 @@ const Clients: React.FC = () => {
     }
   };
 
-  // --- CSV IMPORT Handlers (Fixed for BR format) ---
+  // --- CSV IMPORT Handlers (UPDATED: Ignore ID, CPF, Map, Photo, Trigger) ---
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -288,24 +266,50 @@ const Clients: React.FC = () => {
           return;
       }
       
-      // Detect separator: count commas vs semicolons in header
       const headerLine = lines[0];
       const separator = (headerLine.match(/;/g) || []).length > (headerLine.match(/,/g) || []).length ? ';' : ',';
+      
+      const normalize = (t: string) => t.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/"/g, '');
+      const headers = headerLine.split(separator).map(normalize);
 
-      const headers = headerLine.split(separator).map(h => h.trim().toLowerCase().replace(/"/g, ''));
-      const nomeIdx = headers.findIndex(h => h.includes('nome'));
-      const telIdx = headers.findIndex(h => h.includes('telefone') || h.includes('celular'));
-      const endIdx = headers.findIndex(h => h.includes('endereco'));
-      const bairroIdx = headers.findIndex(h => h.includes('bairro'));
-      const cidIdx = headers.findIndex(h => h.includes('cidade'));
+      // FILTRO DE IGNORAR COLUNAS (SOLICITADO)
+      const isIgnored = (h: string) => {
+          // Ignora ID CLIENTES (que contem 'cliente' e atrapalha o match de Nome)
+          if (h.includes('id') && (h.includes('cliente') || h.includes('cli'))) return true;
+          if (h.includes('cpf')) return true;
+          if (h.includes('mapa')) return true;
+          if (h.includes('foto')) return true;
+          if (h.includes('gatilho')) return true;
+          return false;
+      };
+      
+      const findIndex = (keywords: string[]) => headers.findIndex(h => {
+          if (isIgnored(h)) return false;
+          return keywords.some(k => h.includes(k));
+      });
+
+      const nomeIdx = findIndex(['nome', 'cliente', 'name']);
+      const telIdx = findIndex(['telefone', 'celular', 'whatsapp', 'tel', 'fone']);
+      const endIdx = findIndex(['endereco', 'endereço', 'rua', 'logradouro']);
+      const bairroIdx = findIndex(['bairro', 'distrito']);
+      const cidIdx = findIndex(['cidade', 'municipio']);
+      const vendIdx = findIndex(['vendedor', 'responsavel']); 
 
       if (nomeIdx === -1) {
-          setImportStatus('Erro: Coluna "Nome" não encontrada.');
+          setImportStatus('Erro: Coluna "Nome" não encontrada (ID Clientes foi ignorado).');
           return;
       }
 
-      let count = 0;
-      setImportStatus('Importando clientes...');
+      setImportStatus('Processando dados...');
+      
+      const existingClients = await dataService.getClients();
+      let sellers: User[] = [];
+      if (isAdmin && vendIdx > -1) {
+         sellers = await dataService.getSellers();
+      }
+
+      let created = 0;
+      let updated = 0;
 
       for (let i = 1; i < lines.length; i++) {
           const line = lines[i].trim();
@@ -313,22 +317,42 @@ const Clients: React.FC = () => {
           const cols = line.split(separator).map(c => c.trim().replace(/^"|"$/g, ''));
           
           if (cols[nomeIdx]) {
-             const newClient: any = {
-                 nome: cols[nomeIdx],
-                 telefone: telIdx > -1 ? cols[telIdx] : '',
-                 endereco: endIdx > -1 ? cols[endIdx] : '',
-                 bairro: bairroIdx > -1 ? cols[bairroIdx] : '',
-                 cidade: cidIdx > -1 ? cols[cidIdx] : '',
-                 vendedor_id: session?.id || 'anon',
+             const name = cols[nomeIdx];
+             const phone = telIdx > -1 ? cols[telIdx] : '';
+             
+             // Determine Seller
+             let vId = session?.id || 'anon';
+             if (isAdmin && vendIdx > -1 && cols[vendIdx]) {
+                 const sName = normalize(cols[vendIdx]);
+                 const foundSeller = sellers.find(s => normalize(s.nome) === sName);
+                 if (foundSeller) vId = foundSeller.id;
+             }
+
+             // Check if exists by Name (UPSERT LOGIC)
+             const existing = existingClients.find(c => normalize(c.nome) === normalize(name));
+
+             const clientData = {
+                 nome: name,
+                 telefone: phone,
+                 endereco: endIdx > -1 ? cols[endIdx] : (existing?.endereco || ''),
+                 bairro: bairroIdx > -1 ? cols[bairroIdx] : (existing?.bairro || ''),
+                 cidade: cidIdx > -1 ? cols[cidIdx] : (existing?.cidade || ''),
+                 vendedor_id: existing ? existing.vendedor_id : vId, // Keep original seller if exists
                  is_mumbuca: false
              };
-             await dataService.createClient(newClient);
-             count++;
+
+             if (existing) {
+                 await dataService.updateClient(existing.id, clientData);
+                 updated++;
+             } else {
+                 await dataService.createClient(clientData);
+                 created++;
+             }
           }
       }
       await loadClients();
-      setImportStatus(`Sucesso! ${count} clientes importados.`);
-      setTimeout(() => { setIsImportModalOpen(false); setImportStatus(''); }, 2000);
+      setImportStatus(`Sucesso! ${created} novos, ${updated} atualizados.`);
+      setTimeout(() => { setIsImportModalOpen(false); setImportStatus(''); }, 3000);
   };
 
   const filteredClients = clients.filter(c => {
@@ -339,7 +363,10 @@ const Clients: React.FC = () => {
   return (
     <div className="p-5 animate-fade-in space-y-4">
       <div className="flex justify-between items-center mb-2">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Clientes</h1>
+        <div>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Clientes</h1>
+            <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">{clients.length} cadastrados</p>
+        </div>
         <div className="flex gap-2">
             {isAdmin && (
                 <Button onClick={() => setIsImportModalOpen(true)} variant="secondary" className="!px-3 !py-2" title="Importar Planilha">
@@ -533,7 +560,9 @@ const Clients: React.FC = () => {
          <div className="space-y-4">
              <div className="bg-blue-500/10 p-4 rounded-xl text-sm text-blue-600 dark:text-blue-300 border border-blue-500/20">
                 <p className="font-bold mb-2">Instruções:</p>
-                <p className="mb-2">Salve como <strong>.csv</strong>. Use vírgula ou ponto-e-vírgula (Excel).</p>
+                <p className="mb-2">Salve como <strong>.csv</strong>. Use vírgula ou ponto-e-vírgula.</p>
+                <p className="text-xs">O sistema identificará clientes pelo <strong>Nome</strong> para atualizar dados existentes.</p>
+                <p className="text-xs mt-1 text-gray-500 dark:text-gray-400">Colunas ignoradas: ID Clientes, CPF, Mapa, Foto, Gatilho.</p>
              </div>
              <div className="py-4">
                  <input type="file" accept=".csv" ref={fileInputRef} onChange={handleFileChange} className="hidden" />

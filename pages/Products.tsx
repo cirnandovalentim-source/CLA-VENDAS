@@ -100,7 +100,7 @@ const Products: React.FC = () => {
     }
   };
 
-  // --- CSV IMPORT Handlers (FIXED) ---
+  // --- CSV IMPORT Handlers (UPDATED: Match by Name + Ignore ID/Images) ---
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -131,40 +131,57 @@ const Products: React.FC = () => {
           return;
       }
 
-      // Detect separator: count commas vs semicolons in header
       const headerLine = lines[0];
       const separator = (headerLine.match(/;/g) || []).length > (headerLine.match(/,/g) || []).length ? ';' : ',';
 
-      // Normalize headers
-      const headers = headerLine.split(separator).map(h => h.trim().toLowerCase().replace(/"/g, ''));
+      const normalize = (t: string) => t.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/"/g, '');
+      const headers = headerLine.split(separator).map(normalize);
       
-      const nomeIdx = headers.findIndex(h => h.includes('nome') || h.includes('produto'));
-      const catIdx = headers.findIndex(h => h.includes('categoria'));
-      const avistaIdx = headers.findIndex(h => h.includes('vista') || h.includes('preco_avista'));
-      const parcIdx = headers.findIndex(h => h.includes('parcelado') || h.includes('prazo'));
+      // FILTRO DE IGNORAR COLUNAS (NOVO)
+      const isIgnored = (h: string) => {
+          // Ignora ID PRODUTOS (para não confundir com Nome do Produto)
+          if (h.includes('id') && (h.includes('produto') || h.includes('prod') || h.includes('item'))) return true;
+          // Ignora Imagens/Fotos
+          if (h.includes('imagem') || h.includes('foto') || h.includes('img') || h.includes('url')) return true;
+          return false;
+      };
+
+      const findIndex = (keywords: string[]) => headers.findIndex(h => {
+          if (isIgnored(h)) return false;
+          return keywords.some(k => h.includes(k));
+      });
+
+      const nomeIdx = findIndex(['descricao', 'produto', 'nome', 'item']);
+      const catIdx = findIndex(['categoria', 'grupo', 'tipo']);
+      const avistaIdx = findIndex(['vista', 'preco_avista', 'dinheiro']);
+      let parcIdx = findIndex(['parcelado', 'prazo']);
+      if (parcIdx === -1) {
+          parcIdx = findIndex(['preco', 'valor', 'unitario']);
+      }
 
       if (nomeIdx === -1) {
-          setImportStatus('Erro: Coluna "Nome" não encontrada.');
+          setImportStatus('Erro: Coluna "Descrição" ou "Nome" não encontrada (ID ignorado).');
           return;
       }
 
-      let count = 0;
-      setImportStatus('Importando produtos...');
+      setImportStatus('Processando dados...');
+
+      // 1. Load Existing for Upsert
+      const existingProducts = await dataService.getProducts();
 
       const parsePrice = (val: string) => {
           if (!val) return 0;
           let clean = val.replace(/[R$\s]/g, '').trim();
-          
-          // Tratamento para formato brasileiro 1.200,50 ou americano 1,200.50
           if (clean.includes(',') && !clean.includes('.')) {
-              // Ex: 120,50 -> 120.50
               clean = clean.replace(',', '.');
           } else if (clean.includes(',') && clean.includes('.')) {
-              // Ex: 1.200,50 -> 1200.50
               clean = clean.replace('.', '').replace(',', '.');
           }
           return parseFloat(clean) || 0;
       };
+
+      let created = 0;
+      let updated = 0;
 
       for (let i = 1; i < lines.length; i++) {
           const line = lines[i].trim();
@@ -173,28 +190,37 @@ const Products: React.FC = () => {
           const cols = line.split(separator).map(c => c.trim().replace(/^"|"$/g, ''));
           
           if (cols[nomeIdx]) {
-             const valorAvista = avistaIdx > -1 ? parsePrice(cols[avistaIdx]) : 0;
-             const valorParcelado = parcIdx > -1 ? parsePrice(cols[parcIdx]) : valorAvista;
+             const name = cols[nomeIdx];
+             const valorParcelado = parcIdx > -1 ? parsePrice(cols[parcIdx]) : 0;
+             const valorAvista = avistaIdx > -1 ? parsePrice(cols[avistaIdx]) : valorParcelado;
 
-             const newProduct = {
-                 nome: cols[nomeIdx],
-                 categoria: catIdx > -1 ? cols[catIdx] : 'Geral',
+             // Check Exists
+             const existing = existingProducts.find(p => normalize(p.nome) === normalize(name));
+
+             const prodData = {
+                 nome: name,
+                 categoria: catIdx > -1 ? cols[catIdx] : (existing?.categoria || 'Geral'),
                  valor_avista: valorAvista,
                  valor_parcelado: valorParcelado,
                  ativo: true
              };
 
-             await dataService.createProduct(newProduct);
-             count++;
+             if (existing) {
+                 await dataService.updateProduct(existing.id, prodData);
+                 updated++;
+             } else {
+                 await dataService.createProduct(prodData);
+                 created++;
+             }
           }
       }
 
       await loadProducts();
-      setImportStatus(`Sucesso! ${count} produtos importados.`);
+      setImportStatus(`Sucesso! ${created} novos, ${updated} atualizados.`);
       setTimeout(() => {
           setIsImportModalOpen(false);
           setImportStatus('');
-      }, 2000);
+      }, 3000);
   };
 
   const filteredProducts = products.filter(p => 
@@ -208,7 +234,10 @@ const Products: React.FC = () => {
         <button onClick={() => navigate(-1)} className="text-gray-900 dark:text-white">
           {ICONS.Left}
         </button>
-        <h1 className="text-lg font-bold text-gray-900 dark:text-white">Produtos</h1>
+        <div>
+            <h1 className="text-lg font-bold text-gray-900 dark:text-white">Produtos</h1>
+            <p className="text-xs text-gray-500 dark:text-gray-400">{products.length} itens cadastrados</p>
+        </div>
       </div>
 
       <div className="p-4 space-y-4 flex-1 overflow-y-auto custom-scrollbar">
@@ -325,7 +354,8 @@ const Products: React.FC = () => {
              <div className="bg-blue-500/10 p-4 rounded-xl text-sm text-blue-600 dark:text-blue-300 border border-blue-500/20">
                 <p className="font-bold mb-2">Instruções:</p>
                 <p>1. Salve sua planilha como <strong>.csv</strong>.</p>
-                <p>2. Suporta vírgula ou ponto-e-vírgula (Excel).</p>
+                <p>2. O sistema identificará pelo <strong>Nome/Descrição</strong> para atualizar o preço.</p>
+                <p className="text-xs mt-1 text-gray-500 dark:text-gray-400">Colunas ignoradas: ID Produto, Imagem, Foto.</p>
              </div>
 
              <div className="py-4">
