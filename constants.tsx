@@ -34,7 +34,9 @@ import {
   Printer,
   RotateCcw,
   Camera,
-  Share2
+  Share2,
+  Banknote,
+  History
 } from 'lucide-react';
 
 export const ICONS = {
@@ -72,7 +74,9 @@ export const ICONS = {
   Printer: <Printer size={16} />,
   Return: <RotateCcw size={16} />,
   Camera: <Camera size={20} />,
-  Share: <Share2 size={20} />
+  Share: <Share2 size={20} />,
+  Money: <Banknote size={20} />,
+  History: <History size={20} />
 };
 
 export const ROUTES = {
@@ -87,6 +91,7 @@ export const ROUTES = {
   PRODUCTS: '/products',
   NEW_SALE: '/sales/new',
   SELLERS: '/sellers',
+  SELLER_DETAILS: '/sellers/:id',
   REPORTS: '/reports',
   SETTINGS: '/settings'
 };

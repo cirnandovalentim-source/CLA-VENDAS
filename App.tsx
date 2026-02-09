@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
@@ -10,6 +11,7 @@ import SalesList from './pages/SalesList';
 import Payments from './pages/Payments';
 import NewSale from './pages/NewSale';
 import Sellers from './pages/Sellers';
+import SellerDetails from './pages/SellerDetails';
 import Reports from './pages/Reports';
 import Products from './pages/Products';
 import Settings from './pages/Settings';
@@ -38,6 +40,7 @@ const App: React.FC = () => {
           <Route path={ROUTES.NEW_SALE} element={<NewSale />} />
           <Route path={ROUTES.CLIENT_DETAILS} element={<ClientDetails />} />
           <Route path={ROUTES.SELLERS} element={<Sellers />} />
+          <Route path={ROUTES.SELLER_DETAILS} element={<SellerDetails />} />
           <Route path={ROUTES.REPORTS} element={<Reports />} />
           <Route path={ROUTES.PRODUCTS} element={<Products />} />
           <Route path={ROUTES.SETTINGS} element={<Settings />} />

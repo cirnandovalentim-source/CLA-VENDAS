@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ICONS } from '../constants';
+import { ICONS, ROUTES } from '../constants';
 import { Button, Input, Card, Modal, Toast } from '../components/ui';
 import { dataService } from '../services/mockSupabase';
 import { User } from '../types';
@@ -74,13 +74,15 @@ const Sellers: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const handleOpenEdit = (seller: User) => {
+  const handleOpenEdit = (seller: User, e: React.MouseEvent) => {
+    e.stopPropagation();
     setEditingId(seller.id);
     setForm({ ...seller });
     setIsModalOpen(true);
   };
 
-  const handleOpenDelete = (id: string) => {
+  const handleOpenDelete = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
     setDeletingId(id);
     setIsDeleteModalOpen(true);
   };
@@ -126,10 +128,18 @@ const Sellers: React.FC = () => {
       }
   };
 
+  // Navigate to Detail Page
+  const handleSellerClick = (id: string) => {
+      navigate(ROUTES.SELLER_DETAILS.replace(':id', id));
+  };
+
   return (
     <div className="flex flex-col h-screen bg-[#F3F4F6] dark:bg-[#121212] transition-colors">
       <div className="bg-white dark:bg-[#1E1E1E] p-4 flex items-center gap-4 border-b border-gray-100 dark:border-[#333] sticky top-0 z-10 shadow-sm">
-        <button onClick={() => navigate(-1)} className="text-gray-900 dark:text-white">
+        <button 
+            onClick={() => navigate(ROUTES.DASHBOARD)} 
+            className="p-2 -ml-2 rounded-full hover:bg-gray-100 dark:hover:bg-[#333] text-gray-900 dark:text-white transition-colors"
+        >
           {ICONS.Left}
         </button>
         <h1 className="text-lg font-bold text-gray-900 dark:text-white">Equipe de Vendas</h1>
@@ -164,14 +174,23 @@ const Sellers: React.FC = () => {
 
                 <div className="space-y-3 pb-20">
                   {sellers.map(seller => (
-                    <Card key={seller.id} className="flex flex-col gap-3">
+                    <Card 
+                        key={seller.id} 
+                        className="flex flex-col gap-3 cursor-pointer hover:border-[#FF7A00] transition-colors group"
+                        onClick={() => handleSellerClick(seller.id)}
+                    >
                       <div className="flex justify-between items-center">
-                        <div>
-                            <h3 className="text-gray-900 dark:text-white font-bold flex items-center gap-2">
-                            {seller.nome}
-                            {seller.perfil === 'admin' && <span className="bg-red-500/10 text-red-500 text-[10px] px-2 py-0.5 rounded-full border border-red-500/20">ADMIN</span>}
-                            </h3>
-                            <p className="text-gray-500 text-sm">{seller.email}</p>
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-[#333] flex items-center justify-center text-gray-500 font-bold border border-gray-200 dark:border-white/10">
+                                {seller.nome.charAt(0).toUpperCase()}
+                            </div>
+                            <div>
+                                <h3 className="text-gray-900 dark:text-white font-bold flex items-center gap-2 group-hover:text-[#FF7A00] transition-colors">
+                                {seller.nome}
+                                {seller.perfil === 'admin' && <span className="bg-red-500/10 text-red-500 text-[10px] px-2 py-0.5 rounded-full border border-red-500/20">ADMIN</span>}
+                                </h3>
+                                <p className="text-gray-500 text-sm">{seller.email}</p>
+                            </div>
                         </div>
                         <div className="text-right">
                             <p className="text-xs text-gray-400 font-bold uppercase">Comissão</p>
@@ -181,14 +200,14 @@ const Sellers: React.FC = () => {
                       
                       <div className="flex gap-2 pt-2 border-t border-gray-100 dark:border-white/5">
                         <button 
-                          onClick={() => handleOpenEdit(seller)}
-                          className="flex-1 py-2 bg-gray-50 dark:bg-white/5 text-gray-600 dark:text-gray-400 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 flex justify-center items-center gap-2 text-sm font-medium"
+                          onClick={(e) => handleOpenEdit(seller, e)}
+                          className="flex-1 py-2 bg-gray-50 dark:bg-white/5 text-gray-600 dark:text-gray-400 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 flex justify-center items-center gap-2 text-sm font-medium z-10"
                         >
                             {ICONS.Edit} Editar
                         </button>
                         <button 
-                          onClick={() => handleOpenDelete(seller.id)}
-                          className="flex-1 py-2 bg-red-50 dark:bg-red-500/10 text-red-500 rounded-lg hover:bg-red-100 dark:hover:bg-red-500/20 flex justify-center items-center gap-2 text-sm font-medium"
+                          onClick={(e) => handleOpenDelete(seller.id, e)}
+                          className="flex-1 py-2 bg-red-50 dark:bg-red-500/10 text-red-500 rounded-lg hover:bg-red-100 dark:hover:bg-red-500/20 flex justify-center items-center gap-2 text-sm font-medium z-10"
                         >
                             {ICONS.Trash} Excluir
                         </button>
@@ -232,7 +251,11 @@ const Sellers: React.FC = () => {
                             const commissionValue = (stats.total * (seller.comissao_porcentagem || 0)) / 100;
                             
                             return (
-                                <Card key={seller.id} className="relative overflow-hidden">
+                                <Card 
+                                    key={seller.id} 
+                                    className="relative overflow-hidden cursor-pointer"
+                                    onClick={() => handleSellerClick(seller.id)}
+                                >
                                     <div className="flex justify-between items-start mb-4">
                                         <div className="flex items-center gap-3">
                                             <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-[#333] flex items-center justify-center text-gray-500 font-bold border border-gray-200 dark:border-white/10">
@@ -261,6 +284,9 @@ const Sellers: React.FC = () => {
                                                 R$ {commissionValue.toFixed(2)}
                                             </p>
                                         </div>
+                                    </div>
+                                    <div className="absolute right-2 top-2 opacity-50">
+                                        {ICONS.Right}
                                     </div>
                                 </Card>
                             );

@@ -222,6 +222,18 @@ const getSellers = async (): Promise<User[]> => {
     return users;
 };
 
+// GET SPECIFIC USER
+const getUserById = async (id: string): Promise<User | null> => {
+    if (isSupabaseConfigured) {
+        const { data, error } = await supabase.from('users').select('*').eq('id', id).single();
+        if (error) handleSupabaseError(error);
+        return data || null;
+    }
+    await delay(200);
+    const users = getStorage<User[]>('users', MOCK_USERS);
+    return users.find(u => u.id === id) || null;
+};
+
 // NEW FUNCTION: Calculate Seller Performance
 const getSellersPerformance = async (startDate: Date, endDate: Date): Promise<{ sellerId: string, totalSales: number, salesCount: number }[]> => {
     const startIso = startOfDay(startDate).toISOString();
@@ -885,6 +897,7 @@ const payInstallment = async (installmentId: string, vendedorId: string, actualA
 };
 
 const addExpense = async (description: string, value: number, vendedorId: string): Promise<void> => {
+     // NOTE: vendedorId here represents who *performed* the action OR which wallet it affects
      if (isSupabaseConfigured) {
          const { error } = await supabase.from('cash_flow').insert([{ tipo: 'SAIDA', valor: value, descricao: description, vendedor_id: vendedorId, data: new Date().toISOString() }]);
          if (error) handleSupabaseError(error);
@@ -907,18 +920,18 @@ const deleteCashEntry = async (id: string): Promise<void> => {
       setStorage('cash', cash.filter(c => c.id !== id));
 };
 
-const getCashFlow = async (): Promise<CashEntry[]> => {
-      const filterId = getUserFilter();
+const getCashFlow = async (sellerIdOverride?: string): Promise<CashEntry[]> => {
+      const filterId = sellerIdOverride || getUserFilter();
       if (isSupabaseConfigured) {
           let query = supabase.from('cash_flow').select('*').order('data', { ascending: false });
-          if (filterId) { query = query.eq('vendedor_id', filterId); } // STRICT SECURITY
+          if (filterId && filterId !== 'all') { query = query.eq('vendedor_id', filterId); } // STRICT SECURITY or Specific Seller
           const { data, error } = await query;
           if (error && error.code !== '42P01') handleSupabaseError(error);
           return data || [];
       }
       await delay(300);
       let cash = getStorage<CashEntry[]>('cash', []);
-      if (filterId) cash = cash.filter(c => c.vendedor_id === filterId);
+      if (filterId && filterId !== 'all') cash = cash.filter(c => c.vendedor_id === filterId);
       return cash.sort((a,b) => new Date(b.data).getTime() - new Date(a.data).getTime());
 };
   
@@ -1104,6 +1117,7 @@ const importBackupData = async (jsonData: string): Promise<void> => {
 // 2. Export Object (Safe Construction)
 export const dataService = {
   getSellers,
+  getUserById,
   getSellersPerformance,
   createSeller,
   updateSeller,
