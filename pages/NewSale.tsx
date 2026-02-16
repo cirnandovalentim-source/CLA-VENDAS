@@ -264,6 +264,19 @@ const NewSale: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [installmentsCount, step, paymentType, activeTotal]);
 
+  // NEW: Handler to edit specific installment date
+  const handleInstallmentDateChange = (index: number, dateString: string) => {
+      if (!dateString) return;
+      // Append time to ensure consistent timezone handling (midday)
+      const dateObj = new Date(dateString + 'T12:00:00');
+      
+      setGeneratedInstallments(prev => {
+          const updated = [...prev];
+          updated[index] = { ...updated[index], data_vencimento: dateObj.toISOString() };
+          return updated;
+      });
+  };
+
   const handleFinishSale = async () => {
     if (!session) {
         alert("Erro de autenticação. Faça login novamente.");
@@ -557,9 +570,15 @@ const NewSale: React.FC = () => {
                <h3 className="text-gray-900 dark:text-white font-bold ml-1">Resumo das Parcelas</h3>
                {generatedInstallments.map((inst, idx) => (
                  <div key={idx} className="flex justify-between items-center p-4 bg-white dark:bg-[#1E1E1E] rounded-2xl border border-gray-100 dark:border-[#333] shadow-sm">
-                   <div className="flex flex-col">
+                   <div className="flex flex-col gap-1">
                       <span className="text-gray-900 dark:text-white font-bold text-sm">Parcela {inst.numero_parcela}/{installmentsCount}</span>
-                      <span className="text-gray-400 text-xs">{format(new Date(inst.data_vencimento), 'dd/MM/yyyy')}</span>
+                      {/* --- EDITABLE DATE INPUT --- */}
+                      <input 
+                        type="date"
+                        className="text-gray-500 dark:text-gray-400 text-xs bg-transparent border-b border-gray-300 dark:border-gray-600 focus:border-[#FF7A00] focus:outline-none w-32 cursor-pointer"
+                        value={inst.data_vencimento ? format(new Date(inst.data_vencimento), 'yyyy-MM-dd') : ''}
+                        onChange={(e) => handleInstallmentDateChange(idx, e.target.value)}
+                      />
                    </div>
                    <span className="text-[#FF7A00] font-bold text-lg">R$ {inst.valor.toFixed(2)}</span>
                  </div>
