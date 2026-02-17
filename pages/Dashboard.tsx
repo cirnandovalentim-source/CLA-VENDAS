@@ -52,7 +52,7 @@ const Dashboard: React.FC = () => {
   return (
     <div className="animate-fade-in relative bg-[#F3F4F6] dark:bg-[#121212] min-h-screen pb-24">
       
-      {/* 1. TOP HEADER (Blue/Orange Background) - Overlapping style */}
+      {/* 1. TOP HEADER (Orange Background) - Overlapping style */}
       <div className="bg-[#FF7A00] pt-12 pb-24 px-6 rounded-b-[40px] shadow-lg relative z-0">
         <div className="flex justify-between items-center text-white">
           <div className="flex items-center gap-3">
@@ -76,7 +76,7 @@ const Dashboard: React.FC = () => {
              >
                 {ICONS.Alert}
                 {hasNotifications && (
-                    <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-[#FF7A00]"></span>
+                    <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-white rounded-full border-2 border-[#FF7A00]"></span>
                 )}
              </button>
 
@@ -112,7 +112,7 @@ const Dashboard: React.FC = () => {
                   <p className="text-gray-500 dark:text-gray-400 text-xs font-bold mb-1">
                       {isSeller ? 'VALOR A RECEBER' : 'TOTAL VENDIDO'}
                   </p>
-                  <h2 className="text-3xl font-black text-[#0038A8] dark:text-[#FF7A00] tracking-tight">
+                  <h2 className="text-3xl font-black text-[#FF7A00] tracking-tight">
                      {isSeller ? formatCurrency(commissionValue) : formatCurrency(stats.totalVendido)}
                   </h2>
                </div>
@@ -128,7 +128,7 @@ const Dashboard: React.FC = () => {
 
             {/* Progress Bar Visual */}
             <div className="mt-5 w-full h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden flex">
-               <div className="h-full bg-[#0038A8] dark:bg-[#FF7A00]" style={{ width: '70%' }}></div>
+               <div className="h-full bg-[#FF7A00]" style={{ width: '70%' }}></div>
                <div className="h-full bg-gray-300 dark:bg-gray-600" style={{ width: '30%' }}></div>
             </div>
 
@@ -136,7 +136,7 @@ const Dashboard: React.FC = () => {
             <div className="flex gap-3 mt-6">
                <button 
                   onClick={() => navigate(ROUTES.NEW_SALE)}
-                  className="flex-1 bg-[#F0F4FF] dark:bg-[#FF7A00]/10 text-[#0038A8] dark:text-[#FF7A00] py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-[#E0Eaff] transition-colors"
+                  className="flex-1 bg-[#FF7A00]/10 dark:bg-[#FF7A00]/20 text-[#FF7A00] py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-[#FF7A00]/20 transition-colors"
                >
                   {ICONS.Add} Nova Venda
                </button>
@@ -179,7 +179,7 @@ const Dashboard: React.FC = () => {
              <div className="grid grid-cols-2 gap-3">
                 <button 
                    onClick={() => navigate(ROUTES.PAYMENTS)}
-                   className="bg-[#0038A8] dark:bg-[#FF7A00] text-white py-3 px-4 rounded-xl font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-blue-900/10"
+                   className="bg-[#FF7A00] text-white py-3 px-4 rounded-xl font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-orange-500/20 hover:bg-[#E66E00] transition-colors"
                 >
                    {ICONS.Payments} Receber
                 </button>
@@ -213,15 +213,15 @@ const Dashboard: React.FC = () => {
 
       {/* 4. MARKETING BANNER - "Não deixe nada para depois" style */}
       <div className="px-5 mt-6">
-         <div className="bg-gradient-to-r from-[#0038A8] to-[#0055FF] dark:from-[#FF7A00] dark:to-[#FF9E00] rounded-[24px] p-6 text-white relative overflow-hidden shadow-lg">
+         <div className="bg-gradient-to-r from-[#FF7A00] to-[#FF9E00] dark:from-[#FF7A00] dark:to-[#FF9E00] rounded-[24px] p-6 text-white relative overflow-hidden shadow-lg">
             <div className="relative z-10 w-2/3">
                <h3 className="text-lg font-black leading-tight mb-2">Bata sua meta hoje mesmo!</h3>
-               <p className="text-blue-100 dark:text-orange-100 text-xs font-medium mb-4">
+               <p className="text-orange-100 text-xs font-medium mb-4">
                   Registre suas vendas e acompanhe o crescimento do seu negócio em tempo real.
                </p>
                <button 
                   onClick={() => navigate(ROUTES.NEW_SALE)}
-                  className="bg-white text-[#0038A8] dark:text-[#FF7A00] px-4 py-2 rounded-full text-xs font-bold shadow-sm"
+                  className="bg-white text-[#FF7A00] px-4 py-2 rounded-full text-xs font-bold shadow-sm"
                >
                   Vender Agora
                </button>
@@ -240,9 +240,9 @@ const Dashboard: React.FC = () => {
       </div>
       
       <div className="px-5 pb-6">
-         <div className="bg-white dark:bg-[#1E1E1E] rounded-[20px] p-4 flex items-center justify-between border border-gray-100 dark:border-[#333] shadow-sm cursor-pointer" onClick={() => navigate(ROUTES.SETTINGS)}>
+         <div className="bg-white dark:bg-[#1E1E1E] rounded-[20px] p-4 flex items-center justify-between border border-gray-100 dark:border-[#333] shadow-sm cursor-pointer mb-4" onClick={() => navigate(ROUTES.SETTINGS)}>
             <div className="flex items-center gap-3">
-               <div className="p-2 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-lg">
+               <div className="p-2 bg-[#FF7A00]/10 text-[#FF7A00] rounded-lg">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
                </div>
                <div>
@@ -251,6 +251,18 @@ const Dashboard: React.FC = () => {
                </div>
             </div>
             <div className="text-gray-400">{ICONS.Right}</div>
+         </div>
+
+         {/* PROMOTIONAL BANNER */}
+         <div className="w-full bg-gradient-to-br from-[#1E1E1E] to-[#000] dark:from-[#333] dark:to-[#000] rounded-[20px] p-4 text-center border border-gray-800 shadow-lg relative overflow-hidden group">
+            {/* Background Texture Effect */}
+            <div className="absolute inset-0 bg-[radial-gradient(#ffffff33_1px,transparent_1px)] [background-size:16px_16px] opacity-10"></div>
+            
+            <div className="relative z-10">
+                <p className="text-[#FF7A00] font-bold text-[10px] uppercase tracking-[0.2em] mb-1">Oficial</p>
+                <h3 className="text-white font-black text-lg italic tracking-tighter">O APP DO CREDIARISTA</h3>
+                <div className="w-8 h-1 bg-[#FF7A00] mx-auto mt-2 rounded-full"></div>
+            </div>
          </div>
       </div>
 
