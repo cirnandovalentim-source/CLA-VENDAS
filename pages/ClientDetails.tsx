@@ -26,6 +26,8 @@ const ClientDetails: React.FC = () => {
   
   const [deleteSaleId, setDeleteSaleId] = useState<string | null>(null);
   const [returnSaleId, setReturnSaleId] = useState<string | null>(null);
+  const [editingSale, setEditingSale] = useState<Sale | null>(null);
+  const [editSaleForm, setEditSaleForm] = useState({ total: '', descricao: '' });
   const [isEditClientOpen, setIsEditClientOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [processingImage, setProcessingImage] = useState(false);
@@ -135,6 +137,74 @@ const ClientDetails: React.FC = () => {
           setSelectedFile(null);
           setIsEditClientOpen(true);
       }
+  };
+
+  const handleOpenEditSale = (sale: Sale) => {
+      const installments = installmentsMap[sale.id] || [];
+      const currentTotal = installments.reduce((acc, i) => acc + i.valor, 0);
+      setEditingSale(sale);
+      setEditSaleForm({
+          total: currentTotal.toFixed(2),
+          descricao: sale.descricao || ''
+      });
+  };
+
+  const handleSaveSaleEdit = async () => {
+    if (!editingSale) return;
+    setLoading(true);
+    try {
+        const newTotal = parseFloat(editSaleForm.total);
+        const currentInstallments = installmentsMap[editingSale.id] || [];
+        const currentTotal = currentInstallments.reduce((acc, i) => acc + i.valor, 0);
+        const diff = newTotal - currentTotal;
+
+        // 1. Update Description
+        await dataService.updateSale(editingSale.id, { descricao: editSaleForm.descricao });
+
+        // 2. Update Installments if Total Changed
+        if (Math.abs(diff) > 0.01) {
+             const unpaid = currentInstallments
+                .filter(i => !i.pago)
+                .sort((a, b) => b.numero_parcela - a.numero_parcela); // Start from last
+
+             if (unpaid.length === 0) {
+                 alert("Não é possível alterar o valor de uma venda totalmente paga.");
+                 setLoading(false);
+                 return;
+             }
+
+             let remainingDiff = diff;
+             
+             for (const inst of unpaid) {
+                 if (Math.abs(remainingDiff) < 0.01) break;
+
+                 const newInstValue = inst.valor + remainingDiff;
+                 
+                 if (newInstValue < 0) {
+                     // Installment becomes 0 (or negative, which we cap at 0)
+                     // We consume 'inst.valor' amount of the negative diff
+                     remainingDiff += inst.valor; 
+                     await dataService.updateInstallment(inst.id, { valor: 0 });
+                 } else {
+                     // Installment absorbs all remaining diff
+                     await dataService.updateInstallment(inst.id, { valor: newInstValue });
+                     remainingDiff = 0;
+                 }
+             }
+
+             if (Math.abs(remainingDiff) > 0.01) {
+                 alert("Atenção: O desconto foi maior que o saldo devedor. O valor total foi ajustado para o limite do possível.");
+             }
+        }
+
+        await loadData();
+        setEditingSale(null);
+    } catch (e) {
+        console.error(e);
+        alert("Erro ao salvar alterações.");
+    } finally {
+        setLoading(false);
+    }
   };
 
   const compressImage = (file: File): Promise<{ base64: string, blob: Blob }> => {
@@ -404,6 +474,11 @@ const ClientDetails: React.FC = () => {
                             <span className="text-gray-900 dark:text-white font-bold">Compra #{sale.id.substring(0,6)}</span>
                             <Badge status={sale.status} />
                          </div>
+                         {sale.descricao && (
+                             <p className="text-sm text-gray-600 dark:text-gray-300 font-medium mb-1">
+                                 {sale.descricao}
+                             </p>
+                         )}
                          <div className="flex items-center gap-2">
                              <p className="text-gray-500 dark:text-gray-400 text-xs">
                                 {format(new Date(sale.data_venda), 'dd/MM/yyyy')} • {sale.qtd_parcelas} parcelas
@@ -428,18 +503,25 @@ const ClientDetails: React.FC = () => {
                    {isExpanded && (
                       <div className="bg-gray-50 dark:bg-[#121212] border-t border-gray-200 dark:border-[#333] p-3 space-y-2">
                            <div className="flex justify-between px-1 pb-2 gap-2 flex-wrap">
-                                <button onClick={(e) => { e.stopPropagation(); openReceipt('SALE', sale, sale.id); }} className="text-xs text-blue-500 dark:text-blue-400 flex items-center gap-1 hover:underline">
-                                    {ICONS.Printer} Recibo
-                                </button>
+                                <div className="flex gap-2">
+                                    <button onClick={(e) => { e.stopPropagation(); openReceipt('SALE', sale, sale.id); }} className="text-xs text-blue-500 dark:text-blue-400 flex items-center gap-1 hover:underline">
+                                        {ICONS.Printer} Recibo
+                                    </button>
+                                    {isAdmin && !isReturned && (
+                                        <button onClick={(e) => { e.stopPropagation(); handleOpenEditSale(sale); }} className="text-xs text-gray-600 dark:text-gray-300 flex items-center gap-1 hover:underline">
+                                            {ICONS.Edit} Editar
+                                        </button>
+                                    )}
+                                </div>
                                 {isAdmin && !isReturned && (
-                                    <>
+                                    <div className="flex gap-2">
                                         <button onClick={(e) => { e.stopPropagation(); setReturnSaleId(sale.id); }} className="text-xs text-orange-500 dark:text-orange-400 flex items-center gap-1 hover:underline">
                                             {ICONS.Return} Devolver
                                         </button>
                                         <button onClick={(e) => { e.stopPropagation(); setDeleteSaleId(sale.id); }} className="text-xs text-red-500 dark:text-red-400 flex items-center gap-1 hover:underline">
                                             {ICONS.Trash} Excluir
                                         </button>
-                                    </>
+                                    </div>
                                 )}
                            </div>
                            {installments.map(inst => (
@@ -579,6 +661,29 @@ const ClientDetails: React.FC = () => {
                  <Button variant="danger" onClick={handleDeleteSale} isLoading={loading}>Excluir</Button>
              </div>
          </div>
+      </Modal>
+
+      <Modal isOpen={!!editingSale} onClose={() => setEditingSale(null)} title="Editar Compra">
+        <div className="space-y-4">
+            <Input 
+                label="Descrição do Produto" 
+                value={editSaleForm.descricao} 
+                onChange={(e) => setEditSaleForm(prev => ({ ...prev, descricao: e.target.value }))} 
+                placeholder="Ex: Cama Box Casal"
+            />
+            <Input 
+                label="Valor Total (R$)" 
+                type="number" 
+                value={editSaleForm.total} 
+                onChange={(e) => setEditSaleForm(prev => ({ ...prev, total: e.target.value }))} 
+            />
+            <div className="bg-yellow-50 dark:bg-yellow-900/20 p-3 rounded-lg text-xs text-yellow-700 dark:text-yellow-400">
+                <p><strong>Atenção:</strong> Alterar o valor total irá ajustar automaticamente as parcelas <strong>em aberto</strong> (de trás para frente).</p>
+            </div>
+            <Button fullWidth onClick={handleSaveSaleEdit} isLoading={loading}>
+                Salvar Alterações
+            </Button>
+        </div>
       </Modal>
 
       {receiptData && (

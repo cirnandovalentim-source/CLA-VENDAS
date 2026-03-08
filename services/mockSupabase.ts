@@ -575,6 +575,21 @@ const createSale = async (saleData: Omit<Sale, 'id' | 'status'>, installmentsDat
     setStorage('installments', [...installments, ...newInstallments]);
 };
 
+const updateSale = async (id: string, updates: Partial<Sale>): Promise<void> => {
+    if (isSupabaseConfigured) {
+        const { error } = await supabase.from('sales').update(updates).eq('id', id);
+        if (error) handleSupabaseError(error);
+        return;
+    }
+    await delay(300);
+    const sales = getStorage<Sale[]>('sales', []);
+    const idx = sales.findIndex(s => s.id === id);
+    if (idx > -1) {
+        sales[idx] = { ...sales[idx], ...updates };
+        setStorage('sales', sales);
+    }
+};
+
 const deleteSale = async (saleId: string): Promise<void> => {
     if (isSupabaseConfigured) {
         // ON DELETE CASCADE handles children, but we call delete on parent
@@ -1135,6 +1150,7 @@ export const dataService = {
   getSales,
   getSalesByClient,
   createSale,
+  updateSale,
   deleteSale,
   returnSale,
   getInstallmentsBySale,
