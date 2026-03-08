@@ -5,7 +5,7 @@ import { ICONS, ROUTES } from '../constants';
 import { Button, Card, Badge, Modal, Input } from '../components/ui';
 import { ReceiptModal } from '../components/ReceiptModal';
 import { dataService, authService } from '../services/mockSupabase';
-import { Client, Sale, Installment } from '../types';
+import { Client, Sale, Installment, Product } from '../types';
 import { format } from 'date-fns';
 
 const ClientDetails: React.FC = () => {
@@ -16,6 +16,7 @@ const ClientDetails: React.FC = () => {
   
   const [client, setClient] = useState<Client | null>(null);
   const [sales, setSales] = useState<Sale[]>([]);
+  const [products, setProducts] = useState<Product[]>([]); // New
   const [installmentsMap, setInstallmentsMap] = useState<Record<string, Installment[]>>({});
   const [expandedSale, setExpandedSale] = useState<string | null>(null);
   
@@ -28,6 +29,11 @@ const ClientDetails: React.FC = () => {
   const [returnSaleId, setReturnSaleId] = useState<string | null>(null);
   const [editingSale, setEditingSale] = useState<Sale | null>(null);
   const [editSaleForm, setEditSaleForm] = useState({ total: '', descricao: '' });
+  
+  // Add Item State
+  const [productSearch, setProductSearch] = useState('');
+  const [qtyToAdd, setQtyToAdd] = useState(1);
+
   const [isEditClientOpen, setIsEditClientOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [processingImage, setProcessingImage] = useState(false);
@@ -55,8 +61,10 @@ const ClientDetails: React.FC = () => {
     if (!id) return;
     const clientData = await dataService.getClientById(id);
     const salesData = await dataService.getSalesByClient(id);
+    const productsData = await dataService.getProducts(); // Fetch Products
     setClient(clientData || null);
     setSales(salesData);
+    setProducts(productsData);
 
     const map: Record<string, Installment[]> = {};
     for (const sale of salesData) {
@@ -147,6 +155,76 @@ const ClientDetails: React.FC = () => {
           total: currentTotal.toFixed(2),
           descricao: sale.descricao || ''
       });
+      setProductSearch('');
+      setQtyToAdd(1);
+  };
+
+  const handleAddItem = (product: Product) => {
+      if (!editingSale) return;
+      
+      const qty = qtyToAdd > 0 ? qtyToAdd : 1;
+      const addedValue = product.valor_parcelado * qty;
+      const currentTotal = parseFloat(editSaleForm.total) || 0;
+      const newTotal = currentTotal + addedValue;
+      
+      const itemString = `${qty}x ${product.nome}`;
+      const currentDesc = editSaleForm.descricao || '';
+      const newDesc = currentDesc ? `${currentDesc}, ${itemString}` : itemString;
+      
+      setEditSaleForm({
+          total: newTotal.toFixed(2),
+          descricao: newDesc
+      });
+      
+      setProductSearch('');
+      setQtyToAdd(1);
+  };
+
+  const handleRemoveItem = (itemString: string) => {
+      // itemString format: "2x Nome do Produto"
+      const match = itemString.match(/^(\d+)x\s+(.*)$/);
+      if (!match) return; // Can't parse, can't auto-remove value
+      
+      const qty = parseInt(match[1]);
+      const name = match[2];
+      
+      // Try to find product to deduct price
+      const product = products.find(p => p.nome.toLowerCase() === name.toLowerCase());
+      
+      if (product) {
+          const deductValue = product.valor_parcelado * qty;
+          const currentTotal = parseFloat(editSaleForm.total) || 0;
+          const newTotal = Math.max(0, currentTotal - deductValue);
+          
+          // Remove string from description
+          // Need to handle commas correctly
+          let newDesc = editSaleForm.descricao;
+          // Try exact match with comma before
+          newDesc = newDesc.replace(`, ${itemString}`, '');
+          // Try exact match with comma after
+          newDesc = newDesc.replace(`${itemString}, `, '');
+          // Try exact match alone
+          newDesc = newDesc.replace(itemString, '');
+          
+          setEditSaleForm({
+              total: newTotal.toFixed(2),
+              descricao: newDesc.trim()
+          });
+      } else {
+          // If product not found (name changed or deleted), just remove text
+          if (confirm(`Produto "${name}" não encontrado no catálogo. Remover apenas o texto da descrição? (O valor total NÃO será alterado)`)) {
+              let newDesc = editSaleForm.descricao;
+              newDesc = newDesc.replace(`, ${itemString}`, '');
+              newDesc = newDesc.replace(`${itemString}, `, '');
+              newDesc = newDesc.replace(itemString, '');
+              setEditSaleForm(prev => ({ ...prev, descricao: newDesc.trim() }));
+          }
+      }
+  };
+
+  const getDetectedItems = (desc: string) => {
+      if (!desc) return [];
+      return desc.split(',').map(s => s.trim()).filter(s => s.match(/^\d+x\s+/));
   };
 
   const handleSaveSaleEdit = async () => {
@@ -665,8 +743,67 @@ const ClientDetails: React.FC = () => {
 
       <Modal isOpen={!!editingSale} onClose={() => setEditingSale(null)} title="Editar Compra">
         <div className="space-y-4">
+            {/* --- ADD PRODUCT SECTION --- */}
+            <div className="bg-gray-50 dark:bg-[#252525] p-3 rounded-xl border border-dashed border-gray-300 dark:border-[#444]">
+                <p className="text-xs font-bold text-gray-500 uppercase mb-2">Adicionar Produto</p>
+                <div className="flex gap-2">
+                    <div className="w-20">
+                        <Input 
+                            type="number" 
+                            value={qtyToAdd} 
+                            onChange={(e) => setQtyToAdd(Number(e.target.value))}
+                            className="text-center px-2"
+                            min={1}
+                            placeholder="Qtd"
+                        />
+                    </div>
+                    <div className="flex-1 relative">
+                        <Input 
+                            placeholder="Buscar produto..." 
+                            value={productSearch}
+                            onChange={(e) => setProductSearch(e.target.value)}
+                            className="text-sm w-full"
+                        />
+                        {productSearch && (
+                            <div className="absolute top-full left-0 right-0 bg-white dark:bg-[#333] border border-gray-200 dark:border-[#444] rounded-lg shadow-lg z-50 max-h-40 overflow-y-auto mt-1">
+                                {products
+                                    .filter(p => p.nome.toLowerCase().includes(productSearch.toLowerCase()))
+                                    .map(p => (
+                                        <div 
+                                            key={p.id} 
+                                            onClick={() => {
+                                                handleAddItem(p);
+                                            }}
+                                            className="p-2 hover:bg-gray-100 dark:hover:bg-[#444] cursor-pointer text-sm flex justify-between"
+                                        >
+                                            <span>{p.nome}</span>
+                                            <span className="font-bold text-[#FF7A00]">R$ {p.valor_parcelado.toFixed(2)}</span>
+                                        </div>
+                                    ))
+                                }
+                                {products.filter(p => p.nome.toLowerCase().includes(productSearch.toLowerCase())).length === 0 && (
+                                    <div className="p-2 text-gray-500 text-xs text-center">Nenhum produto encontrado</div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            {/* --- DETECTED ITEMS --- */}
+            {getDetectedItems(editSaleForm.descricao).length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                    {getDetectedItems(editSaleForm.descricao).map((item, idx) => (
+                        <div key={idx} className="bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 px-2 py-1 rounded-lg text-xs flex items-center gap-2 border border-blue-100 dark:border-blue-800">
+                            <span>{item}</span>
+                            <button onClick={() => handleRemoveItem(item)} className="hover:text-red-500 font-bold">×</button>
+                        </div>
+                    ))}
+                </div>
+            )}
+
             <Input 
-                label="Descrição do Produto" 
+                label="Descrição (Texto Completo)" 
                 value={editSaleForm.descricao} 
                 onChange={(e) => setEditSaleForm(prev => ({ ...prev, descricao: e.target.value }))} 
                 placeholder="Ex: Cama Box Casal"
