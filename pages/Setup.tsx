@@ -39,6 +39,8 @@ create table if not exists clients (
   vendedor_id text,
   foto_url text,
   is_mumbuca boolean default false,
+  cpf text,
+  mumbuca_password text,
   created_at timestamptz default now()
 );
 
@@ -147,6 +149,8 @@ BEGIN;
 -- 1. Garantir Colunas Novas
 ALTER TABLE sales ADD COLUMN IF NOT EXISTS descricao text;
 ALTER TABLE sales ADD COLUMN IF NOT EXISTS is_mumbuca boolean default false;
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS cpf text;
+ALTER TABLE clients ADD COLUMN IF NOT EXISTS mumbuca_password text;
 
 -- 2. Garantir que RLS está ATIVO
 ALTER TABLE IF EXISTS users ENABLE ROW LEVEL SECURITY;

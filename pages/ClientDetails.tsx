@@ -34,6 +34,10 @@ const ClientDetails: React.FC = () => {
   const [productSearch, setProductSearch] = useState('');
   const [qtyToAdd, setQtyToAdd] = useState(1);
 
+  // Mumbuca Modal State
+  const [isMumbucaModalOpen, setIsMumbucaModalOpen] = useState(false);
+  const [mumbucaForm, setMumbucaForm] = useState({ cpf: '', password: '' });
+
   const [isEditClientOpen, setIsEditClientOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [processingImage, setProcessingImage] = useState(false);
@@ -137,6 +141,37 @@ const ClientDetails: React.FC = () => {
           description: description,
           history: history
       });
+  };
+
+  const handleOpenMumbuca = () => {
+      if (!client) return;
+      setMumbucaForm({
+          cpf: client.cpf || '',
+          password: client.mumbuca_password || ''
+      });
+      setIsMumbucaModalOpen(true);
+  };
+
+  const handleSaveMumbuca = async () => {
+      if (!client) return;
+      setLoading(true);
+      try {
+          await dataService.updateClient(client.id, {
+              cpf: mumbucaForm.cpf,
+              mumbuca_password: mumbucaForm.password
+          });
+          
+          // Update local client state immediately
+          setClient(prev => prev ? ({ ...prev, cpf: mumbucaForm.cpf, mumbuca_password: mumbucaForm.password }) : null);
+          
+          setIsMumbucaModalOpen(false);
+          alert("Dados Mumbuca atualizados com sucesso!");
+      } catch (e) {
+          console.error(e);
+          alert("Erro ao salvar dados Mumbuca.");
+      } finally {
+          setLoading(false);
+      }
   };
 
   const handleOpenEditClient = () => {
@@ -562,9 +597,12 @@ const ClientDetails: React.FC = () => {
                                 {format(new Date(sale.data_venda), 'dd/MM/yyyy')} • {sale.qtd_parcelas} parcelas
                              </p>
                              {sale.is_mumbuca && (
-                                <span className="bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full font-bold">
+                                <button 
+                                    onClick={(e) => { e.stopPropagation(); handleOpenMumbuca(); }}
+                                    className="bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full font-bold hover:bg-red-600 transition-colors shadow-sm"
+                                >
                                     Mumbuca
-                                </span>
+                                </button>
                              )}
                          </div>
                       </div>
@@ -739,6 +777,58 @@ const ClientDetails: React.FC = () => {
                  <Button variant="danger" onClick={handleDeleteSale} isLoading={loading}>Excluir</Button>
              </div>
          </div>
+      </Modal>
+
+      <Modal isOpen={isMumbucaModalOpen} onClose={() => setIsMumbucaModalOpen(false)} title="Cartão Mumbuca">
+        <div className="space-y-6">
+            {/* Credit Card Visual */}
+            <div className="bg-gradient-to-br from-red-600 to-orange-600 p-6 rounded-2xl text-white shadow-xl relative overflow-hidden">
+                <div className="absolute top-0 right-0 -mt-4 -mr-4 w-24 h-24 bg-white/10 rounded-full blur-xl"></div>
+                <div className="absolute bottom-0 left-0 -mb-4 -ml-4 w-20 h-20 bg-black/10 rounded-full blur-xl"></div>
+                
+                <div className="flex justify-between items-start mb-8">
+                    <div className="flex items-center gap-2">
+                        <div className="bg-white/20 p-1.5 rounded-lg backdrop-blur-sm">
+                            {ICONS.Wallet}
+                        </div>
+                        <span className="font-bold tracking-wider text-lg">Mumbuca</span>
+                    </div>
+                    <div className="text-xs font-medium bg-white/20 px-2 py-1 rounded backdrop-blur-sm">Social</div>
+                </div>
+
+                <div className="space-y-4 relative z-10">
+                    <div>
+                        <label className="text-[10px] opacity-80 uppercase tracking-widest block mb-1">Titular</label>
+                        <p className="font-bold text-lg truncate tracking-wide">{client?.nome}</p>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="text-[10px] opacity-80 uppercase tracking-widest block mb-1">CPF</label>
+                            <input 
+                                value={mumbucaForm.cpf}
+                                onChange={(e) => setMumbucaForm(prev => ({ ...prev, cpf: e.target.value }))}
+                                className="bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white placeholder-white/40 w-full focus:outline-none focus:bg-white/20 transition-colors font-mono text-sm"
+                                placeholder="000.000.000-00"
+                            />
+                        </div>
+                        <div>
+                            <label className="text-[10px] opacity-80 uppercase tracking-widest block mb-1">Senha</label>
+                            <input 
+                                value={mumbucaForm.password}
+                                onChange={(e) => setMumbucaForm(prev => ({ ...prev, password: e.target.value }))}
+                                className="bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white placeholder-white/40 w-full focus:outline-none focus:bg-white/20 transition-colors font-mono text-sm"
+                                placeholder="****"
+                            />
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <Button fullWidth onClick={handleSaveMumbuca} isLoading={loading}>
+                Salvar Dados
+            </Button>
+        </div>
       </Modal>
 
       <Modal isOpen={!!editingSale} onClose={() => setEditingSale(null)} title="Editar Compra">
