@@ -174,6 +174,27 @@ const ClientDetails: React.FC = () => {
       }
   };
 
+  const handleToggleMumbuca = async (sale: Sale) => {
+      setLoading(true);
+      try {
+          const newValue = !sale.is_mumbuca;
+          await dataService.updateSale(sale.id, { is_mumbuca: newValue });
+          
+          // Se estiver marcando como mumbuca, garante que o cliente também seja marcado
+          if (newValue && client && !client.is_mumbuca) {
+              await dataService.updateClient(client.id, { is_mumbuca: true });
+              setClient(prev => prev ? { ...prev, is_mumbuca: true } : null);
+          }
+          
+          await loadData();
+      } catch (e) {
+          console.error(e);
+          alert("Erro ao atualizar status Mumbuca da venda.");
+      } finally {
+          setLoading(false);
+      }
+  };
+
   const handleOpenEditClient = () => {
       if(client) {
           setClientForm(client);
@@ -527,8 +548,8 @@ const ClientDetails: React.FC = () => {
 
       <div className="flex-1 overflow-y-auto p-4 custom-scrollbar pb-24 space-y-6">
         <Card>
-           <div className="flex items-center gap-4 mb-4">
-               <div className="w-16 h-16 rounded-full bg-gray-100 dark:bg-[#333] flex items-center justify-center overflow-hidden border-2 border-[#FF7A00] text-gray-500 font-bold text-2xl">
+           <div className="flex items-start gap-4 mb-4">
+               <div className="w-16 h-16 rounded-full bg-gray-100 dark:bg-[#333] flex items-center justify-center overflow-hidden border-2 border-[#FF7A00] text-gray-500 font-bold text-2xl shrink-0">
                   {client.foto_url ? (
                       <img src={client.foto_url} alt={client.nome} className="w-full h-full object-cover" />
                   ) : (
@@ -537,17 +558,20 @@ const ClientDetails: React.FC = () => {
                </div>
                <div>
                   <h2 className="text-xl font-bold text-gray-900 dark:text-white">{client.nome}</h2>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Cliente desde {new Date().getFullYear()}</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Cliente desde {new Date().getFullYear()}</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-300 flex items-start gap-1 mt-1">
+                     <span className="mt-0.5 opacity-70 shrink-0">{ICONS.Map}</span>
+                     <span className="leading-tight">
+                        {client.endereco}
+                        {client.bairro ? ` - ${client.bairro}` : ''}
+                        {client.cidade ? ` - ${client.cidade}` : ''}
+                     </span>
+                  </p>
                </div>
            </div>
-           <div className="flex items-start justify-between border-t border-gray-100 dark:border-[#333] pt-4">
-              <div className="space-y-2">
-                 <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400 text-sm">
-                    {ICONS.Phone} {client.telefone}
-                 </div>
-                 <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400 text-sm">
-                    {ICONS.Map} {client.bairro}, {client.cidade}
-                 </div>
+           <div className="flex items-center justify-between border-t border-gray-100 dark:border-[#333] pt-4">
+              <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400 text-sm">
+                 {ICONS.Phone} {client.telefone}
               </div>
               <a href={`https://wa.me/55${client.telefone.replace(/\D/g, '')}`} target="_blank" className="bg-green-100 dark:bg-green-500/10 text-green-600 dark:text-green-500 p-2 rounded-lg">
                 {ICONS.Phone}
@@ -626,6 +650,14 @@ const ClientDetails: React.FC = () => {
                                     {isAdmin && !isReturned && (
                                         <button onClick={(e) => { e.stopPropagation(); handleOpenEditSale(sale); }} className="text-xs text-gray-600 dark:text-gray-300 flex items-center gap-1 hover:underline">
                                             {ICONS.Edit} Editar
+                                        </button>
+                                    )}
+                                    {isAdmin && !isReturned && (
+                                        <button 
+                                            onClick={(e) => { e.stopPropagation(); handleToggleMumbuca(sale); }} 
+                                            className={`text-xs flex items-center gap-1 hover:underline ${sale.is_mumbuca ? 'text-red-500 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'}`}
+                                        >
+                                            {ICONS.Wallet} {sale.is_mumbuca ? 'Remover Mumbuca' : 'Marcar Mumbuca'}
                                         </button>
                                     )}
                                 </div>
