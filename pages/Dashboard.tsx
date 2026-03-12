@@ -17,7 +17,8 @@ const Dashboard: React.FC = () => {
   
   const [counts, setCounts] = useState({
      clients: 0,
-     products: 0
+     products: 0,
+     mumbucaClients: 0
   });
 
   const [valuesVisible, setValuesVisible] = useState(true);
@@ -27,7 +28,11 @@ const Dashboard: React.FC = () => {
       const data = await dataService.getDashboardStats();
       const [c, p] = await Promise.all([dataService.getClients(), dataService.getProducts()]);
       setStats(data);
-      setCounts({ clients: c.length, products: p.length });
+      setCounts({ 
+          clients: c.length, 
+          products: p.length,
+          mumbucaClients: c.filter(client => client.is_mumbuca).length
+      });
     };
     loadStats();
   }, []);
@@ -153,14 +158,18 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* 2.5 COUNTS SUMMARY (NEW) */}
-      <div className="px-5 mt-4 grid grid-cols-2 gap-3">
+      <div className="px-5 mt-4 grid grid-cols-3 gap-3">
          <div onClick={() => navigate(ROUTES.CLIENTS)} className="bg-white dark:bg-[#1E1E1E] p-4 rounded-[20px] shadow-sm border border-gray-100 dark:border-[#333] flex flex-col items-center justify-center cursor-pointer active:scale-95 transition-transform">
              <span className="text-2xl font-black text-gray-900 dark:text-white mb-1">{counts.clients}</span>
-             <span className="text-xs text-gray-500 font-bold uppercase">Clientes</span>
+             <span className="text-[10px] text-gray-500 font-bold uppercase">Clientes</span>
+         </div>
+         <div onClick={() => navigate(ROUTES.CLIENTS, { state: { filterMumbuca: true } })} className="bg-red-50 dark:bg-red-900/20 p-4 rounded-[20px] shadow-sm border border-red-100 dark:border-red-800/30 flex flex-col items-center justify-center cursor-pointer active:scale-95 transition-transform">
+             <span className="text-2xl font-black text-red-600 dark:text-red-400 mb-1">{counts.mumbucaClients}</span>
+             <span className="text-[10px] text-red-500 font-bold uppercase">Mumbuca</span>
          </div>
          <div onClick={() => navigate(ROUTES.PRODUCTS)} className="bg-white dark:bg-[#1E1E1E] p-4 rounded-[20px] shadow-sm border border-gray-100 dark:border-[#333] flex flex-col items-center justify-center cursor-pointer active:scale-95 transition-transform">
              <span className="text-2xl font-black text-gray-900 dark:text-white mb-1">{counts.products}</span>
-             <span className="text-xs text-gray-500 font-bold uppercase">Produtos</span>
+             <span className="text-[10px] text-gray-500 font-bold uppercase">Produtos</span>
          </div>
       </div>
 

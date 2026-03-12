@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { ICONS, ROUTES } from '../constants';
 import { Button, Input, Card, Modal } from '../components/ui';
 import { dataService, authService } from '../services/mockSupabase';
@@ -35,12 +35,14 @@ const ClientAvatar: React.FC<{ url?: string; name: string }> = ({ url, name }) =
 
 const Clients: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const session = authService.getSession();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
 
   const [clients, setClients] = useState<Client[]>([]);
   const [search, setSearch] = useState('');
+  const [filterMumbucaOnly, setFilterMumbucaOnly] = useState(location.state?.filterMumbuca || false);
   const [loading, setLoading] = useState(false);
   const [processingImage, setProcessingImage] = useState(false);
   
@@ -357,7 +359,8 @@ const Clients: React.FC = () => {
 
   const filteredClients = clients.filter(c => {
     const matchesSearch = c.nome.toLowerCase().includes(search.toLowerCase()) || c.telefone.includes(search);
-    return matchesSearch;
+    const matchesMumbuca = filterMumbucaOnly ? c.is_mumbuca : true;
+    return matchesSearch && matchesMumbuca;
   });
 
   return (
@@ -365,7 +368,7 @@ const Clients: React.FC = () => {
       <div className="flex justify-between items-center mb-2">
         <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Clientes</h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">{clients.length} cadastrados</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">{filteredClients.length} cadastrados</p>
         </div>
         <div className="flex gap-2">
             {isAdmin && (
@@ -379,16 +382,25 @@ const Clients: React.FC = () => {
         </div>
       </div>
 
-      <div className="relative">
-        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
-          {ICONS.Search}
+      <div className="flex gap-2">
+        <div className="relative flex-1">
+          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
+            {ICONS.Search}
+          </div>
+          <Input 
+            placeholder="Buscar cliente..." 
+            className="pl-10"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
         </div>
-        <Input 
-          placeholder="Buscar cliente..." 
-          className="pl-10"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+        <button 
+            onClick={() => setFilterMumbucaOnly(!filterMumbucaOnly)}
+            className={`px-3 rounded-xl border flex items-center justify-center transition-colors ${filterMumbucaOnly ? 'bg-red-500 text-white border-red-500' : 'bg-white dark:bg-[#1E1E1E] text-gray-400 border-gray-200 dark:border-[#333]'}`}
+            title="Filtrar por Mumbuca"
+        >
+            {ICONS.Wallet}
+        </button>
       </div>
 
       <div className="space-y-3 pb-24">
