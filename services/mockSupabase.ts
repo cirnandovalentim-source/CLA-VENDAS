@@ -911,16 +911,16 @@ const payInstallment = async (installmentId: string, vendedorId: string, actualA
     }
 };
 
-const addExpense = async (description: string, value: number, vendedorId: string): Promise<void> => {
+const addExpense = async (description: string, value: number, vendedorId: string, categoria?: string): Promise<void> => {
      // NOTE: vendedorId here represents who *performed* the action OR which wallet it affects
      if (isSupabaseConfigured) {
-         const { error } = await supabase.from('cash_flow').insert([{ tipo: 'SAIDA', valor: value, descricao: description, vendedor_id: vendedorId, data: new Date().toISOString() }]);
+         const { error } = await supabase.from('cash_flow').insert([{ tipo: 'SAIDA', valor: value, descricao: description, vendedor_id: vendedorId, data: new Date().toISOString(), categoria }]);
          if (error) handleSupabaseError(error);
          return;
      }
      await delay(300);
      const cash = getStorage<CashEntry[]>('cash', []);
-     cash.push({ id: uuidv4(), data: new Date().toISOString(), tipo: 'SAIDA', valor: value, descricao: description, vendedor_id: vendedorId });
+     cash.push({ id: uuidv4(), data: new Date().toISOString(), tipo: 'SAIDA', valor: value, descricao: description, vendedor_id: vendedorId, categoria });
      setStorage('cash', cash);
 };
 
@@ -998,7 +998,7 @@ const getDashboardStats = async () => {
 };
 
 const getDetailedReports = async (startDate: Date, endDate: Date, sellerId?: string) => {
-    const processData = (salesRes: Sale[], cashRes: CashEntry[]) => {
+    const processData = (salesRes: Sale[], cashRes: CashEntry[], expensesRes: CashEntry[]) => {
         const interval = eachDayOfInterval({ start: startDate, end: endDate });
         const dailyData: DailyReport[] = interval.map(date => {
             const daySales = salesRes.filter(s => isSameDay(new Date(s.data_venda), date));
@@ -1013,9 +1013,11 @@ const getDetailedReports = async (startDate: Date, endDate: Date, sellerId?: str
             dailyData,
             sales: salesRes,
             receipts: cashRes,
+            expenses: expensesRes,
             summary: {
                 totalSales: salesRes.reduce((acc, s) => acc + s.valor_total, 0),
-                totalReceipts: cashRes.reduce((acc, c) => acc + c.valor, 0)
+                totalReceipts: cashRes.reduce((acc, c) => acc + c.valor, 0),
+                totalExpenses: expensesRes.reduce((acc, e) => acc + e.valor, 0)
             }
         };
     };
@@ -1040,10 +1042,16 @@ const getDetailedReports = async (startDate: Date, endDate: Date, sellerId?: str
         const { data: sData, error: sError } = await salesQuery;
         const { data: cData, error: cError } = await cashQuery;
         
+        let expensesQuery = supabase.from('cash_flow').select('*').eq('tipo', 'SAIDA').gte('data', startDate.toISOString()).lte('data', endDate.toISOString());
+        if (finalSellerId && finalSellerId !== 'all') {
+            expensesQuery = expensesQuery.eq('vendedor_id', finalSellerId);
+        }
+        const { data: eData, error: eError } = await expensesQuery;
+
         if (sError) handleSupabaseError(sError);
         
         const sales = (sData || []).map((s: any) => ({ ...s, cliente_nome: s.clients?.nome || 'Desconhecido' }));
-        return processData(sales, cData || []);
+        return processData(sales, cData || [], eData || []);
     }
     
     await delay(500);
@@ -1059,12 +1067,17 @@ const getDetailedReports = async (startDate: Date, endDate: Date, sellerId?: str
        const d = new Date(c.data);
        return d >= startDate && d <= endDate && c.tipo === 'ENTRADA';
     });
+    let filteredExpenses = cash.filter(c => {
+       const d = new Date(c.data);
+       return d >= startDate && d <= endDate && c.tipo === 'SAIDA';
+    });
     
     if (finalSellerId && finalSellerId !== 'all') {
         filteredSales = filteredSales.filter(s => s.vendedor_id === finalSellerId);
         filteredCash = filteredCash.filter(c => c.vendedor_id === finalSellerId);
+        filteredExpenses = filteredExpenses.filter(c => c.vendedor_id === finalSellerId);
     }
-    return processData(filteredSales, filteredCash);
+    return processData(filteredSales, filteredCash, filteredExpenses);
 };
 
 const exportBackupData = async (): Promise<string> => {

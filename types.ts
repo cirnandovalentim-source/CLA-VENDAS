@@ -70,6 +70,7 @@ export interface CashEntry {
   descricao: string;
   vendedor_id: string;
   venda_id?: string; // Optional link to sale for refunds/returns
+  categoria?: string; // New field for categorization
 }
 
 export interface CartItem extends Product {

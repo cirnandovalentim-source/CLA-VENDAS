@@ -30,7 +30,7 @@ const Payments: React.FC = () => {
   
   const [showExpenseModal, setShowExpenseModal] = useState(false);
   const [deleteCashId, setDeleteCashId] = useState<string | null>(null);
-  const [expenseForm, setExpenseForm] = useState({ descricao: '', valor: '' });
+  const [expenseForm, setExpenseForm] = useState({ descricao: '', valor: '', categoria: '' });
 
   const loadData = async () => {
     // 1. Load Route (Daily Collection)
@@ -76,10 +76,10 @@ const Payments: React.FC = () => {
     if (!expenseForm.descricao || !expenseForm.valor || !session) return;
     setLoading(true);
     try {
-      await dataService.addExpense(expenseForm.descricao, parseFloat(expenseForm.valor), session.id);
+      await dataService.addExpense(expenseForm.descricao, parseFloat(expenseForm.valor), session.id, expenseForm.categoria);
       await loadData();
       setShowExpenseModal(false);
-      setExpenseForm({ descricao: '', valor: '' });
+      setExpenseForm({ descricao: '', valor: '', categoria: '' });
     } catch (e) {
       console.error(e);
     } finally {
@@ -414,6 +414,22 @@ const Payments: React.FC = () => {
                value={expenseForm.descricao}
                onChange={(e) => setExpenseForm(prev => ({ ...prev, descricao: e.target.value }))}
             />
+            <div className="space-y-1">
+               <label className="text-sm font-medium text-gray-700 dark:text-gray-300 ml-1">Categoria</label>
+               <select
+                  className="w-full bg-white dark:bg-[#2E2E2E] border border-gray-300 dark:border-[#404040] rounded-xl px-4 py-3 text-gray-900 dark:text-white focus:outline-none focus:border-[#FF7A00] dark:focus:border-[#FF7A00] transition-colors"
+                  value={expenseForm.categoria}
+                  onChange={(e) => setExpenseForm(prev => ({ ...prev, categoria: e.target.value }))}
+               >
+                  <option value="">Selecione uma categoria (opcional)</option>
+                  <option value="Alimentação">Alimentação</option>
+                  <option value="Combustível">Combustível</option>
+                  <option value="Manutenção">Manutenção</option>
+                  <option value="Marketing">Marketing</option>
+                  <option value="Material de Escritório">Material de Escritório</option>
+                  <option value="Outros">Outros</option>
+               </select>
+            </div>
             <Input 
                label="Valor (R$)" 
                type="number"

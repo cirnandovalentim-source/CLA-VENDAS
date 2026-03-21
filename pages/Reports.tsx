@@ -6,7 +6,7 @@ import { Card, Badge } from '../components/ui';
 import { dataService } from '../services/mockSupabase';
 import { DailyReport, User, Sale, CashEntry } from '../types';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid, PieChart, Pie, Cell } from 'recharts';
 
 const Reports: React.FC = () => {
   const navigate = useNavigate();
@@ -23,11 +23,13 @@ const Reports: React.FC = () => {
   // Data State
   const [salesList, setSalesList] = useState<Sale[]>([]);
   const [receiptsList, setReceiptsList] = useState<CashEntry[]>([]);
+  const [expensesList, setExpensesList] = useState<CashEntry[]>([]);
   const [dailyData, setDailyData] = useState<DailyReport[]>([]);
-  const [summary, setSummary] = useState({ totalSales: 0, totalReceipts: 0 });
+  const [summary, setSummary] = useState({ totalSales: 0, totalReceipts: 0, totalExpenses: 0 });
+  const [expensesByCategory, setExpensesByCategory] = useState<{name: string, value: number}[]>([]);
   
   // Tab State
-  const [activeTab, setActiveTab] = useState<'sales' | 'receipts'>('sales');
+  const [activeTab, setActiveTab] = useState<'sales' | 'receipts' | 'expenses'>('sales');
 
   // Load Sellers on mount
   useEffect(() => {
@@ -49,8 +51,22 @@ const Reports: React.FC = () => {
       );
       setSalesList(data.sales);
       setReceiptsList(data.receipts);
+      setExpensesList(data.expenses);
       setDailyData(data.dailyData);
       setSummary(data.summary);
+      
+      // Calculate expenses by category
+      const categoryMap: Record<string, number> = {};
+      data.expenses.forEach(exp => {
+        const cat = exp.categoria || 'Outros';
+        categoryMap[cat] = (categoryMap[cat] || 0) + exp.valor;
+      });
+      const categoryData = Object.keys(categoryMap).map(key => ({
+        name: key,
+        value: categoryMap[key]
+      })).sort((a, b) => b.value - a.value);
+      setExpensesByCategory(categoryData);
+      
       setLoading(false);
     };
     loadData();
@@ -119,60 +135,114 @@ const Reports: React.FC = () => {
         </div>
 
         {/* Global Stats for Filtered Period */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-3 gap-3">
            <Card className="text-center p-3">
              <div className="flex items-center justify-center gap-2 mb-1">
                 <div className="w-2 h-2 rounded-full bg-[#FF7A00]" />
-                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wide">Total Vendido</p>
+                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wide">Vendido</p>
              </div>
-             <p className="text-gray-900 dark:text-white font-bold text-xl sm:text-2xl">R$ {summary.totalSales.toFixed(0)}</p>
+             <p className="text-gray-900 dark:text-white font-bold text-lg sm:text-xl">R$ {summary.totalSales.toFixed(0)}</p>
            </Card>
            <Card className="text-center p-3">
              <div className="flex items-center justify-center gap-2 mb-1">
                 <div className="w-2 h-2 rounded-full bg-green-500" />
-                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wide">Total Recebido</p>
+                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wide">Recebido</p>
              </div>
-             <p className="text-green-600 dark:text-green-500 font-bold text-xl sm:text-2xl">R$ {summary.totalReceipts.toFixed(0)}</p>
+             <p className="text-green-600 dark:text-green-500 font-bold text-lg sm:text-xl">R$ {summary.totalReceipts.toFixed(0)}</p>
+           </Card>
+           <Card className="text-center p-3">
+             <div className="flex items-center justify-center gap-2 mb-1">
+                <div className="w-2 h-2 rounded-full bg-red-500" />
+                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wide">Despesas</p>
+             </div>
+             <p className="text-red-600 dark:text-red-500 font-bold text-lg sm:text-xl">R$ {summary.totalExpenses.toFixed(0)}</p>
            </Card>
         </div>
 
         {/* Chart: Sales vs Receipts */}
-        <Card className="h-72 pb-2 flex flex-col">
-           <h3 className="text-gray-900 dark:text-white font-bold mb-2 text-sm px-2">Evolução no Período</h3>
-           <div className="flex-1 w-full min-h-[200px]">
-             {loading ? (
-               <div className="h-full flex items-center justify-center text-gray-500 text-sm">Carregando...</div>
-             ) : dailyData.length === 0 ? (
-               <div className="h-full flex items-center justify-center text-gray-500 text-sm">Sem dados no período</div>
-             ) : (
-               <ResponsiveContainer width="100%" height="100%">
-                 <LineChart data={dailyData}>
-                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e5e5" vertical={false} />
-                   <XAxis dataKey="data" stroke="#999" fontSize={12} tickLine={false} axisLine={false} />
-                   <Tooltip content={<CustomTooltip />} />
-                   <Line type="monotone" dataKey="vendas" name="Vendas" stroke={COLORS.primary} strokeWidth={3} dot={false} />
-                   <Line type="monotone" dataKey="recebimentos" name="Recebimentos" stroke={COLORS.success} strokeWidth={3} dot={false} />
-                 </LineChart>
-               </ResponsiveContainer>
-             )}
-           </div>
-        </Card>
+        {activeTab !== 'expenses' ? (
+          <Card className="h-72 pb-2 flex flex-col">
+             <h3 className="text-gray-900 dark:text-white font-bold mb-2 text-sm px-2">Evolução no Período</h3>
+             <div className="flex-1 w-full min-h-[200px]">
+               {loading ? (
+                 <div className="h-full flex items-center justify-center text-gray-500 text-sm">Carregando...</div>
+               ) : dailyData.length === 0 ? (
+                 <div className="h-full flex items-center justify-center text-gray-500 text-sm">Sem dados no período</div>
+               ) : (
+                 <ResponsiveContainer width="100%" height="100%">
+                   <LineChart data={dailyData}>
+                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e5e5" vertical={false} />
+                     <XAxis dataKey="data" stroke="#999" fontSize={12} tickLine={false} axisLine={false} />
+                     <Tooltip content={<CustomTooltip />} />
+                     <Line type="monotone" dataKey="vendas" name="Vendas" stroke={COLORS.primary} strokeWidth={3} dot={false} />
+                     <Line type="monotone" dataKey="recebimentos" name="Recebimentos" stroke={COLORS.success} strokeWidth={3} dot={false} />
+                   </LineChart>
+                 </ResponsiveContainer>
+               )}
+             </div>
+          </Card>
+        ) : (
+          <Card className="h-72 pb-2 flex flex-col">
+             <h3 className="text-gray-900 dark:text-white font-bold mb-2 text-sm px-2">Despesas por Categoria</h3>
+             <div className="flex-1 w-full min-h-[200px]">
+               {loading ? (
+                 <div className="h-full flex items-center justify-center text-gray-500 text-sm">Carregando...</div>
+               ) : expensesByCategory.length === 0 ? (
+                 <div className="h-full flex items-center justify-center text-gray-500 text-sm">Sem despesas no período</div>
+               ) : (
+                 <ResponsiveContainer width="100%" height="100%">
+                   <PieChart>
+                     <Pie
+                       data={expensesByCategory}
+                       cx="50%"
+                       cy="50%"
+                       innerRadius={60}
+                       outerRadius={80}
+                       paddingAngle={5}
+                       dataKey="value"
+                     >
+                       {expensesByCategory.map((entry, index) => (
+                         <Cell key={`cell-${index}`} fill={[COLORS.primary, COLORS.success, COLORS.danger, '#8B5CF6', '#EC4899', '#14B8A6', '#F59E0B'][index % 7]} />
+                       ))}
+                     </Pie>
+                     <Tooltip content={<CustomTooltip />} />
+                   </PieChart>
+                 </ResponsiveContainer>
+               )}
+             </div>
+             {/* Legend */}
+             <div className="flex flex-wrap justify-center gap-2 px-2 mt-2">
+               {expensesByCategory.map((entry, index) => (
+                 <div key={index} className="flex items-center gap-1 text-[10px] text-gray-600 dark:text-gray-400">
+                   <div className="w-2 h-2 rounded-full" style={{ backgroundColor: [COLORS.primary, COLORS.success, COLORS.danger, '#8B5CF6', '#EC4899', '#14B8A6', '#F59E0B'][index % 7] }} />
+                   {entry.name} ({((entry.value / summary.totalExpenses) * 100).toFixed(0)}%)
+                 </div>
+               ))}
+             </div>
+          </Card>
+        )}
 
         {/* Transaction Lists */}
         <div>
            {/* Tabs */}
-           <div className="flex gap-4 mb-4 border-b border-gray-200 dark:border-white/10">
+           <div className="flex gap-4 mb-4 border-b border-gray-200 dark:border-white/10 overflow-x-auto custom-scrollbar">
               <button 
                  onClick={() => setActiveTab('sales')}
-                 className={`pb-2 px-4 font-bold text-sm transition-colors border-b-2 ${activeTab === 'sales' ? 'text-[#FF7A00] border-[#FF7A00]' : 'text-gray-500 border-transparent hover:text-gray-900 dark:hover:text-white'}`}
+                 className={`pb-2 px-4 font-bold text-sm transition-colors border-b-2 whitespace-nowrap ${activeTab === 'sales' ? 'text-[#FF7A00] border-[#FF7A00]' : 'text-gray-500 border-transparent hover:text-gray-900 dark:hover:text-white'}`}
               >
                  Vendas ({salesList.length})
               </button>
               <button 
                  onClick={() => setActiveTab('receipts')}
-                 className={`pb-2 px-4 font-bold text-sm transition-colors border-b-2 ${activeTab === 'receipts' ? 'text-[#FF7A00] border-[#FF7A00]' : 'text-gray-500 border-transparent hover:text-gray-900 dark:hover:text-white'}`}
+                 className={`pb-2 px-4 font-bold text-sm transition-colors border-b-2 whitespace-nowrap ${activeTab === 'receipts' ? 'text-[#FF7A00] border-[#FF7A00]' : 'text-gray-500 border-transparent hover:text-gray-900 dark:hover:text-white'}`}
               >
                  Recebimentos ({receiptsList.length})
+              </button>
+              <button 
+                 onClick={() => setActiveTab('expenses')}
+                 className={`pb-2 px-4 font-bold text-sm transition-colors border-b-2 whitespace-nowrap ${activeTab === 'expenses' ? 'text-[#FF7A00] border-[#FF7A00]' : 'text-gray-500 border-transparent hover:text-gray-900 dark:hover:text-white'}`}
+              >
+                 Despesas ({expensesList.length})
               </button>
            </div>
 
@@ -200,7 +270,7 @@ const Reports: React.FC = () => {
                        </Card>
                     ))
                  )
-              ) : (
+              ) : activeTab === 'receipts' ? (
                  receiptsList.length === 0 ? (
                     <p className="text-gray-500 text-center py-4 text-sm">Nenhum recebimento encontrado.</p>
                  ) : (
@@ -216,6 +286,32 @@ const Reports: React.FC = () => {
                              </div>
                           </div>
                           <p className="text-green-600 dark:text-green-500 font-bold">R$ {receipt.valor.toFixed(2)}</p>
+                       </Card>
+                    ))
+                 )
+              ) : (
+                 expensesList.length === 0 ? (
+                    <p className="text-gray-500 text-center py-4 text-sm">Nenhuma despesa encontrada.</p>
+                 ) : (
+                    expensesList.map(expense => (
+                       <Card key={expense.id} className="flex justify-between items-center py-3">
+                          <div className="flex items-center gap-3">
+                             <div className="w-8 h-8 rounded-full bg-red-500/10 flex items-center justify-center text-red-500">
+                                {ICONS.Alert}
+                             </div>
+                             <div>
+                                <p className="text-gray-900 dark:text-white font-bold text-sm">{expense.descricao}</p>
+                                <div className="flex items-center gap-2 mt-1">
+                                  <p className="text-xs text-gray-500">{format(new Date(expense.data), 'dd/MM/yyyy HH:mm')}</p>
+                                  {expense.categoria && (
+                                    <span className="text-[10px] bg-gray-100 dark:bg-[#333] text-gray-600 dark:text-gray-400 px-2 py-0.5 rounded-full">
+                                      {expense.categoria}
+                                    </span>
+                                  )}
+                                </div>
+                             </div>
+                          </div>
+                          <p className="text-red-600 dark:text-red-500 font-bold">- R$ {expense.valor.toFixed(2)}</p>
                        </Card>
                     ))
                  )
