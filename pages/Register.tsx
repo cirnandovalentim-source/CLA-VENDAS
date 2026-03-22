@@ -58,7 +58,7 @@ const Register: React.FC = () => {
       <div className="w-full max-w-sm mx-auto space-y-8">
         
         <div className="text-center space-y-2">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-[#FF7A00]/10 text-[#FF7A00] mb-4">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-brand-primary/10 text-brand-primary mb-4">
              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
                <circle cx="8.5" cy="7" r="4" />
@@ -142,7 +142,7 @@ const Register: React.FC = () => {
             <button 
                 type="button" 
                 onClick={() => navigate(ROUTES.LOGIN)}
-                className="text-sm text-gray-500 hover:text-[#FF7A00] transition-colors"
+                className="text-sm text-gray-500 hover:text-brand-primary transition-colors"
             >
               Já tem uma conta? <span className="font-bold text-white">Faça Login</span>
             </button>

@@ -178,11 +178,11 @@ const SellerDetails: React.FC = () => {
                  <p className="text-xs text-gray-500 font-bold uppercase">Total Vendido</p>
                  <p className="text-lg font-black text-gray-900 dark:text-white">R$ {totalSold.toFixed(2)}</p>
              </Card>
-             <Card className="flex flex-col justify-between border-l-4 border-l-[#FF7A00]">
+             <Card className="flex flex-col justify-between border-l-4 border-l-brand-primary">
                  <div className="flex justify-between items-center">
-                    <p className="text-xs text-[#FF7A00] font-bold uppercase">Comissão ({commissionRate}%)</p>
+                    <p className="text-xs text-brand-primary font-bold uppercase">Comissão ({commissionRate}%)</p>
                  </div>
-                 <p className="text-lg font-black text-[#FF7A00]">R$ {commissionEarned.toFixed(2)}</p>
+                 <p className="text-lg font-black text-brand-primary">R$ {commissionEarned.toFixed(2)}</p>
              </Card>
              <Card className="flex flex-col justify-between border-l-4 border-l-red-500">
                  <p className="text-xs text-red-500 font-bold uppercase">Vales / Pagos</p>
@@ -218,13 +218,13 @@ const SellerDetails: React.FC = () => {
              <div className="flex border-b border-gray-200 dark:border-[#333] mb-2">
                  <button 
                     onClick={() => setActiveTab('sales')}
-                    className={`flex-1 pb-2 text-sm font-bold border-b-2 transition-colors ${activeTab === 'sales' ? 'border-[#FF7A00] text-[#FF7A00]' : 'border-transparent text-gray-400'}`}
+                    className={`flex-1 pb-2 text-sm font-bold border-b-2 transition-colors ${activeTab === 'sales' ? 'border-brand-primary text-brand-primary' : 'border-transparent text-gray-400'}`}
                  >
                     Vendas ({sales.length})
                  </button>
                  <button 
                     onClick={() => setActiveTab('extract')}
-                    className={`flex-1 pb-2 text-sm font-bold border-b-2 transition-colors ${activeTab === 'extract' ? 'border-[#FF7A00] text-[#FF7A00]' : 'border-transparent text-gray-400'}`}
+                    className={`flex-1 pb-2 text-sm font-bold border-b-2 transition-colors ${activeTab === 'extract' ? 'border-brand-primary text-brand-primary' : 'border-transparent text-gray-400'}`}
                  >
                     Extrato ({cashFlow.filter(c => c.tipo === 'SAIDA').length})
                  </button>
@@ -238,7 +238,7 @@ const SellerDetails: React.FC = () => {
                              <p className="text-xs text-gray-500">{format(new Date(sale.data_venda), 'dd/MM/yyyy')}</p>
                          </div>
                          <div className="text-right">
-                             <p className="font-bold text-[#FF7A00]">R$ {sale.valor_total.toFixed(2)}</p>
+                             <p className="font-bold text-brand-primary">R$ {sale.valor_total.toFixed(2)}</p>
                              <p className="text-[10px] text-gray-400 font-bold uppercase">Comissão: R$ {(sale.valor_total * commissionRate / 100).toFixed(2)}</p>
                          </div>
                      </div>

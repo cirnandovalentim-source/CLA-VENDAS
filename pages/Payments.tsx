@@ -148,13 +148,13 @@ const Payments: React.FC = () => {
       <div className="flex gap-4 mb-6">
         <button 
           onClick={() => setView('due')}
-          className={`flex-1 pb-2 font-bold text-lg transition-colors border-b-2 ${view === 'due' ? 'text-[#FF7A00] border-[#FF7A00]' : 'text-gray-400 dark:text-gray-500 border-transparent'}`}
+          className={`flex-1 pb-2 font-bold text-lg transition-colors border-b-2 ${view === 'due' ? 'text-brand-primary border-brand-primary' : 'text-gray-400 dark:text-gray-500 border-transparent'}`}
         >
           A Receber
         </button>
         <button 
           onClick={() => setView('cash')}
-          className={`flex-1 pb-2 font-bold text-lg transition-colors border-b-2 ${view === 'cash' ? 'text-[#FF7A00] border-[#FF7A00]' : 'text-gray-400 dark:text-gray-500 border-transparent'}`}
+          className={`flex-1 pb-2 font-bold text-lg transition-colors border-b-2 ${view === 'cash' ? 'text-brand-primary border-brand-primary' : 'text-gray-400 dark:text-gray-500 border-transparent'}`}
         >
           Caixa
         </button>
@@ -231,7 +231,7 @@ const Payments: React.FC = () => {
             filteredDueList.map(item => {
               const overdue = isPast(new Date(item.data_vencimento)) && !isToday(new Date(item.data_vencimento));
               return (
-                <Card key={item.id} className={`flex justify-between items-center border-l-4 ${overdue ? 'border-l-red-500' : 'border-l-[#FF7A00]'}`}>
+                <Card key={item.id} className={`flex justify-between items-center border-l-4 ${overdue ? 'border-l-red-500' : 'border-l-brand-primary'}`}>
                   <div>
                     <h4 className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
                         {item.cliente_nome}
@@ -270,19 +270,19 @@ const Payments: React.FC = () => {
           <div className="flex p-1 bg-white dark:bg-[#1E1E1E] rounded-xl border border-gray-200 dark:border-[#333]">
               <button 
                 onClick={() => setCashPeriod('day')}
-                className={`flex-1 py-1.5 text-xs font-medium rounded-lg transition-all ${cashPeriod === 'day' ? 'bg-[#FF7A00] text-white shadow-md' : 'text-gray-500'}`}
+                className={`flex-1 py-1.5 text-xs font-medium rounded-lg transition-all ${cashPeriod === 'day' ? 'bg-brand-primary text-white shadow-md' : 'text-gray-500'}`}
               >
                 Hoje
               </button>
               <button 
                 onClick={() => setCashPeriod('week')}
-                className={`flex-1 py-1.5 text-xs font-medium rounded-lg transition-all ${cashPeriod === 'week' ? 'bg-[#FF7A00] text-white shadow-md' : 'text-gray-500'}`}
+                className={`flex-1 py-1.5 text-xs font-medium rounded-lg transition-all ${cashPeriod === 'week' ? 'bg-brand-primary text-white shadow-md' : 'text-gray-500'}`}
               >
                 Semana
               </button>
               <button 
                 onClick={() => setCashPeriod('month')}
-                className={`flex-1 py-1.5 text-xs font-medium rounded-lg transition-all ${cashPeriod === 'month' ? 'bg-[#FF7A00] text-white shadow-md' : 'text-gray-500'}`}
+                className={`flex-1 py-1.5 text-xs font-medium rounded-lg transition-all ${cashPeriod === 'month' ? 'bg-brand-primary text-white shadow-md' : 'text-gray-500'}`}
               >
                 Mês
               </button>
@@ -424,7 +424,7 @@ const Payments: React.FC = () => {
             <div className="space-y-1">
                <label className="text-sm font-medium text-gray-700 dark:text-gray-300 ml-1">Categoria</label>
                <select
-                  className="w-full bg-white dark:bg-[#2E2E2E] border border-gray-300 dark:border-[#404040] rounded-xl px-4 py-3 text-gray-900 dark:text-white focus:outline-none focus:border-[#FF7A00] dark:focus:border-[#FF7A00] transition-colors"
+                  className="w-full bg-white dark:bg-[#2E2E2E] border border-gray-300 dark:border-[#404040] rounded-xl px-4 py-3 text-gray-900 dark:text-white focus:outline-none focus:border-brand-primary dark:focus:border-brand-primary transition-colors"
                   value={expenseForm.categoria}
                   onChange={(e) => setExpenseForm(prev => ({ ...prev, categoria: e.target.value }))}
                >

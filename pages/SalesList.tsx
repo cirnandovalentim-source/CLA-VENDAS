@@ -41,7 +41,7 @@ const SalesList: React.FC = () => {
              <div className="flex justify-between items-end mt-4">
                <div>
                  <p className="text-gray-400 dark:text-gray-500 text-xs uppercase font-bold">Total</p>
-                 <p className="text-[#FF7A00] font-black text-xl">R$ {sale.valor_total.toFixed(2)}</p>
+                 <p className="text-brand-primary font-black text-xl">R$ {sale.valor_total.toFixed(2)}</p>
                </div>
                <div className="text-right">
                  <p className="text-gray-400 dark:text-gray-500 text-xs uppercase font-bold">Plano</p>

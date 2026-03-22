@@ -150,13 +150,13 @@ const Sellers: React.FC = () => {
         <div className="flex p-1 bg-white dark:bg-[#1E1E1E] rounded-xl border border-gray-200 dark:border-[#333]">
            <button 
              onClick={() => setActiveTab('list')}
-             className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === 'list' ? 'bg-[#FF7A00] text-white shadow-md' : 'text-gray-500 dark:text-gray-400'}`}
+             className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === 'list' ? 'bg-brand-primary text-white shadow-md' : 'text-gray-500 dark:text-gray-400'}`}
            >
              Gerenciar
            </button>
            <button 
              onClick={() => setActiveTab('performance')}
-             className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === 'performance' ? 'bg-[#FF7A00] text-white shadow-md' : 'text-gray-500 dark:text-gray-400'}`}
+             className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === 'performance' ? 'bg-brand-primary text-white shadow-md' : 'text-gray-500 dark:text-gray-400'}`}
            >
              Comissões
            </button>
@@ -176,7 +176,7 @@ const Sellers: React.FC = () => {
                   {sellers.map(seller => (
                     <Card 
                         key={seller.id} 
-                        className="flex flex-col gap-3 cursor-pointer hover:border-[#FF7A00] transition-colors group"
+                        className="flex flex-col gap-3 cursor-pointer hover:border-brand-primary transition-colors group"
                         onClick={() => handleSellerClick(seller.id)}
                     >
                       <div className="flex justify-between items-center">
@@ -185,7 +185,7 @@ const Sellers: React.FC = () => {
                                 {seller.nome.charAt(0).toUpperCase()}
                             </div>
                             <div>
-                                <h3 className="text-gray-900 dark:text-white font-bold flex items-center gap-2 group-hover:text-[#FF7A00] transition-colors">
+                                <h3 className="text-gray-900 dark:text-white font-bold flex items-center gap-2 group-hover:text-brand-primary transition-colors">
                                 {seller.nome}
                                 {seller.perfil === 'admin' && <span className="bg-red-500/10 text-red-500 text-[10px] px-2 py-0.5 rounded-full border border-red-500/20">ADMIN</span>}
                                 </h3>
@@ -194,7 +194,7 @@ const Sellers: React.FC = () => {
                         </div>
                         <div className="text-right">
                             <p className="text-xs text-gray-400 font-bold uppercase">Comissão</p>
-                            <p className="text-[#FF7A00] font-bold">{seller.comissao_porcentagem || 0}%</p>
+                            <p className="text-brand-primary font-bold">{seller.comissao_porcentagem || 0}%</p>
                         </div>
                       </div>
                       
@@ -266,7 +266,7 @@ const Sellers: React.FC = () => {
                                                 <p className="text-xs text-gray-500">{stats.count} vendas no período</p>
                                             </div>
                                         </div>
-                                        <div className="bg-orange-50 dark:bg-orange-900/20 text-[#FF7A00] px-2 py-1 rounded-lg text-xs font-bold border border-orange-100 dark:border-orange-900/30">
+                                        <div className="bg-brand-primary/10 dark:bg-brand-primary/20 text-brand-primary px-2 py-1 rounded-lg text-xs font-bold border border-brand-primary/20 dark:border-brand-primary/30">
                                             {seller.comissao_porcentagem || 0}% Com.
                                         </div>
                                     </div>
@@ -319,7 +319,7 @@ const Sellers: React.FC = () => {
           <div className="flex flex-col gap-1.5">
              <label className="text-sm font-bold text-gray-700 dark:text-gray-300 ml-1">Perfil de Acesso</label>
              <select 
-               className="w-full bg-white dark:bg-[#1E1E1E] border border-gray-200 dark:border-[#333] rounded-2xl px-4 py-4 text-gray-900 dark:text-white font-medium focus:outline-none focus:border-[#FF7A00]"
+               className="w-full bg-white dark:bg-[#1E1E1E] border border-gray-200 dark:border-[#333] rounded-2xl px-4 py-4 text-gray-900 dark:text-white font-medium focus:outline-none focus:border-brand-primary"
                value={form.perfil}
                onChange={e => setForm({...form, perfil: e.target.value as any})}
              >

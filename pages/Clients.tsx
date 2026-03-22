@@ -437,7 +437,7 @@ const Clients: React.FC = () => {
             <div className="flex gap-2 items-center mt-3 border-t border-gray-100 dark:border-[#333] pt-2 pl-[60px]">
               <button 
                 onClick={(e) => { e.stopPropagation(); navigate(ROUTES.NEW_SALE, { state: { client } }); }}
-                className="flex-1 py-2 bg-[#FF7A00]/10 text-[#FF7A00] rounded-lg text-sm font-medium hover:bg-[#FF7A00]/20 z-10 flex justify-center items-center gap-2"
+                className="flex-1 py-2 bg-brand-primary/10 text-brand-primary rounded-lg text-sm font-medium hover:bg-brand-primary/20 z-10 flex justify-center items-center gap-2"
               >
                 {ICONS.Sales} Nova Venda
               </button>
@@ -483,7 +483,7 @@ const Clients: React.FC = () => {
              <div className="relative">
                 <div 
                   onClick={() => photoInputRef.current?.click()}
-                  className={`w-24 h-24 rounded-full bg-gray-100 dark:bg-[#333] border-2 border-dashed ${processingImage ? 'border-[#FF7A00] animate-pulse' : 'border-gray-300 dark:border-gray-500'} flex items-center justify-center overflow-hidden cursor-pointer hover:border-[#FF7A00] transition-colors`}
+                  className={`w-24 h-24 rounded-full bg-gray-100 dark:bg-[#333] border-2 border-dashed ${processingImage ? 'border-brand-primary animate-pulse' : 'border-gray-300 dark:border-gray-500'} flex items-center justify-center overflow-hidden cursor-pointer hover:border-brand-primary transition-colors`}
                 >
                    {clientForm.foto_url ? (
                      <img src={clientForm.foto_url} alt="Foto" className="w-full h-full object-cover" />

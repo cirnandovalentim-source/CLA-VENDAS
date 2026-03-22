@@ -181,7 +181,7 @@ const Settings: React.FC = () => {
            
            <button 
              onClick={toggleTheme}
-             className={`w-12 h-6 rounded-full relative transition-colors ${theme === 'dark' ? 'bg-[#FF7A00]' : 'bg-gray-300'}`}
+             className={`w-12 h-6 rounded-full relative transition-colors ${theme === 'dark' ? 'bg-brand-primary' : 'bg-gray-300'}`}
            >
               <div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-transform ${theme === 'dark' ? 'left-7' : 'left-1'}`}></div>
            </button>
@@ -196,7 +196,7 @@ const Settings: React.FC = () => {
              onClick={() => navigate(ROUTES.SETUP)}
              variant="secondary"
              fullWidth
-             className="border border-orange-500/20 text-orange-600 dark:text-orange-400 bg-orange-500/5 hover:bg-orange-500/10"
+             className="border border-brand-primary/20 text-brand-primary dark:text-brand-primary/80 bg-brand-primary/5 hover:bg-brand-primary/10"
            >
               Abrir Tela de Setup / Correção
            </Button>

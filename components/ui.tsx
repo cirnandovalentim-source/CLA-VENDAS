@@ -16,12 +16,12 @@ export const Button: React.FC<ButtonProps> = ({
   const baseStyles = "relative flex items-center justify-center gap-2 px-4 py-3.5 rounded-2xl font-semibold transition-all active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100";
   
   const variants = {
-    primary: "bg-[#FF7A00] text-white hover:bg-[#E66E00] shadow-lg shadow-orange-500/30 border border-transparent",
+    primary: "bg-brand-primary text-white hover:bg-brand-primary/90 shadow-lg shadow-brand-primary/30 border border-transparent",
     
     // Secondary is now cleaner, lighter gray
     secondary: "bg-gray-100 text-gray-800 hover:bg-gray-200 dark:bg-[#333] dark:text-gray-100 dark:hover:bg-[#404040] border border-transparent",
     
-    outline: "border-2 border-[#FF7A00] text-[#FF7A00] hover:bg-[#FF7A00]/10",
+    outline: "border-2 border-brand-primary text-brand-primary hover:bg-brand-primary/10",
     
     ghost: "text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:text-white dark:hover:bg-white/5",
     
@@ -57,7 +57,7 @@ export const Input: React.FC<InputProps> = ({ label, error, className, ...props 
     <div className="flex flex-col gap-1.5 w-full">
       {label && <label className="text-sm font-bold text-gray-700 dark:text-gray-300 ml-1">{label}</label>}
       <input 
-        className={`w-full bg-white dark:bg-[#1E1E1E] border border-gray-200 dark:border-[#333] rounded-2xl px-4 py-4 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-[#FF7A00] focus:ring-2 focus:ring-[#FF7A00]/20 transition-all disabled:opacity-50 disabled:bg-gray-100 dark:disabled:bg-[#121212] font-medium ${className}`}
+        className={`w-full bg-white dark:bg-[#1E1E1E] border border-gray-200 dark:border-[#333] rounded-2xl px-4 py-4 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20 transition-all disabled:opacity-50 disabled:bg-gray-100 dark:disabled:bg-[#121212] font-medium ${className}`}
         {...props}
       />
       {error && <span className="text-xs text-red-500 dark:text-red-400 ml-1 font-bold">{error}</span>}
@@ -83,7 +83,7 @@ export const Card: React.FC<{ children: React.ReactNode; className?: string; onC
 export const Badge: React.FC<{ status: 'ABERTA' | 'PARCIAL' | 'QUITADA' | string }> = ({ status }) => {
   const styles: Record<string, string> = {
     'ABERTA': 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-blue-100 dark:border-blue-800',
-    'PARCIAL': 'bg-orange-50 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300 border-orange-100 dark:border-orange-800',
+    'PARCIAL': 'bg-brand-primary/10 text-brand-primary dark:bg-brand-primary/30 dark:text-brand-primary/80 border-brand-primary/20 dark:border-brand-primary/50',
     'QUITADA': 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-300 border-green-100 dark:border-green-800',
     'DEVOLVIDO': 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-300 border-red-100 dark:border-red-800',
     'ENTRADA': 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-300',

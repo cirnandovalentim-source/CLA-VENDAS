@@ -104,7 +104,7 @@ const Reports: React.FC = () => {
            <div className="col-span-2 space-y-1">
              <label className="text-xs text-gray-500 dark:text-gray-400 ml-1">Filtrar por Vendedor</label>
              <select
-                className="w-full bg-gray-50 dark:bg-[#2E2E2E] border border-gray-200 dark:border-[#404040] rounded-xl px-3 py-2 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-[#FF7A00]"
+                className="w-full bg-gray-50 dark:bg-[#2E2E2E] border border-gray-200 dark:border-[#404040] rounded-xl px-3 py-2 text-gray-900 dark:text-white text-sm focus:outline-none focus:border-brand-primary"
                 value={selectedSeller}
                 onChange={(e) => setSelectedSeller(e.target.value)}
              >
@@ -138,7 +138,7 @@ const Reports: React.FC = () => {
         <div className="grid grid-cols-3 gap-3">
            <Card className="text-center p-3">
              <div className="flex items-center justify-center gap-2 mb-1">
-                <div className="w-2 h-2 rounded-full bg-[#FF7A00]" />
+                <div className="w-2 h-2 rounded-full bg-brand-primary" />
                 <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wide">Vendido</p>
              </div>
              <p className="text-gray-900 dark:text-white font-bold text-lg sm:text-xl">R$ {summary.totalSales.toFixed(0)}</p>
@@ -228,19 +228,19 @@ const Reports: React.FC = () => {
            <div className="flex gap-4 mb-4 border-b border-gray-200 dark:border-white/10 overflow-x-auto custom-scrollbar">
               <button 
                  onClick={() => setActiveTab('sales')}
-                 className={`pb-2 px-4 font-bold text-sm transition-colors border-b-2 whitespace-nowrap ${activeTab === 'sales' ? 'text-[#FF7A00] border-[#FF7A00]' : 'text-gray-500 border-transparent hover:text-gray-900 dark:hover:text-white'}`}
+                 className={`pb-2 px-4 font-bold text-sm transition-colors border-b-2 whitespace-nowrap ${activeTab === 'sales' ? 'text-brand-primary border-brand-primary' : 'text-gray-500 border-transparent hover:text-gray-900 dark:hover:text-white'}`}
               >
                  Vendas ({salesList.length})
               </button>
               <button 
                  onClick={() => setActiveTab('receipts')}
-                 className={`pb-2 px-4 font-bold text-sm transition-colors border-b-2 whitespace-nowrap ${activeTab === 'receipts' ? 'text-[#FF7A00] border-[#FF7A00]' : 'text-gray-500 border-transparent hover:text-gray-900 dark:hover:text-white'}`}
+                 className={`pb-2 px-4 font-bold text-sm transition-colors border-b-2 whitespace-nowrap ${activeTab === 'receipts' ? 'text-brand-primary border-brand-primary' : 'text-gray-500 border-transparent hover:text-gray-900 dark:hover:text-white'}`}
               >
                  Recebimentos ({receiptsList.length})
               </button>
               <button 
                  onClick={() => setActiveTab('expenses')}
-                 className={`pb-2 px-4 font-bold text-sm transition-colors border-b-2 whitespace-nowrap ${activeTab === 'expenses' ? 'text-[#FF7A00] border-[#FF7A00]' : 'text-gray-500 border-transparent hover:text-gray-900 dark:hover:text-white'}`}
+                 className={`pb-2 px-4 font-bold text-sm transition-colors border-b-2 whitespace-nowrap ${activeTab === 'expenses' ? 'text-brand-primary border-brand-primary' : 'text-gray-500 border-transparent hover:text-gray-900 dark:hover:text-white'}`}
               >
                  Despesas ({expensesList.length})
               </button>
@@ -264,7 +264,7 @@ const Reports: React.FC = () => {
                              </div>
                           </div>
                           <div className="text-right">
-                             <p className="text-[#FF7A00] font-bold">R$ {sale.valor_total.toFixed(2)}</p>
+                             <p className="text-brand-primary font-bold">R$ {sale.valor_total.toFixed(2)}</p>
                              <p className="text-[10px] text-gray-500 font-bold uppercase">{sale.qtd_parcelas}x</p>
                           </div>
                        </Card>

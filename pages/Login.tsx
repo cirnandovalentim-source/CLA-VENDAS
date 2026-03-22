@@ -139,16 +139,16 @@ const Login: React.FC = () => {
     <div className="flex flex-col h-screen w-screen bg-gray-50 dark:bg-[#121212] justify-center items-center p-6 relative overflow-hidden transition-colors duration-500">
       
       {/* Background Decor */}
-      <div className="absolute top-[-10%] left-[-10%] w-[50vw] h-[50vw] bg-[#FF7A00] rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-[100px] opacity-10 animate-pulse"></div>
+      <div className="absolute top-[-10%] left-[-10%] w-[50vw] h-[50vw] bg-brand-primary rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-[100px] opacity-10 animate-pulse"></div>
       <div className="absolute bottom-[-10%] right-[-10%] w-[50vw] h-[50vw] bg-blue-600 rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-[100px] opacity-10 animate-pulse"></div>
 
       <div className="w-full max-w-sm z-10">
         
         {/* Brand Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-28 h-28 rounded-full bg-gradient-to-br from-white to-gray-100 dark:from-[#1E1E1E] dark:to-[#252525] text-[#FF7A00] shadow-[0_8px_30px_rgba(255,122,0,0.15)] border-4 border-[#FF7A00] mb-4 relative overflow-hidden group">
+          <div className="inline-flex items-center justify-center w-28 h-28 rounded-full bg-gradient-to-br from-white to-gray-100 dark:from-[#1E1E1E] dark:to-[#252525] text-brand-primary shadow-[0_8px_30px_rgba(255,122,0,0.15)] border-4 border-brand-primary mb-4 relative overflow-hidden group">
              {/* Logo Placeholder (Native Look) */}
-             <div className="absolute inset-0 bg-[#FF7A00]/5 flex items-center justify-center">
+             <div className="absolute inset-0 bg-brand-primary/5 flex items-center justify-center">
                 <Handshake size={56} className="text-gray-900 dark:text-white drop-shadow-sm" strokeWidth={1.5} />
              </div>
              
@@ -170,7 +170,7 @@ const Login: React.FC = () => {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="bg-gray-50 dark:bg-[#121212] border-gray-200 dark:border-white/10 focus:border-[#FF7A00]"
+                className="bg-gray-50 dark:bg-[#121212] border-gray-200 dark:border-white/10 focus:border-brand-primary"
               />
               <Input 
                 type="password" 
@@ -179,7 +179,7 @@ const Login: React.FC = () => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                className="bg-gray-50 dark:bg-[#121212] border-gray-200 dark:border-white/10 focus:border-[#FF7A00]"
+                className="bg-gray-50 dark:bg-[#121212] border-gray-200 dark:border-white/10 focus:border-brand-primary"
               />
             </div>
 
@@ -189,7 +189,7 @@ const Login: React.FC = () => {
               </div>
             )}
 
-            <Button type="submit" fullWidth isLoading={loading} className="py-4 shadow-orange-900/20">
+            <Button type="submit" fullWidth isLoading={loading} className="py-4 shadow-brand-primary/20">
               Entrar
             </Button>
           </form>
@@ -200,7 +200,7 @@ const Login: React.FC = () => {
                onClick={() => navigate(ROUTES.REGISTER)}
                className="text-sm text-gray-500 hover:text-gray-900 dark:hover:text-white transition-colors"
              >
-              Primeiro acesso? <span className="text-[#FF7A00] font-bold">Criar Conta</span>
+              Primeiro acesso? <span className="text-brand-primary font-bold">Criar Conta</span>
             </button>
           </div>
         </div>
@@ -224,7 +224,7 @@ const Login: React.FC = () => {
                {isSupabaseConfigured && (
                    <button 
                      onClick={() => navigate(ROUTES.SETUP)}
-                     className="text-[10px] text-gray-400 hover:text-[#FF7A00] transition-colors"
+                     className="text-[10px] text-gray-400 hover:text-brand-primary transition-colors"
                    >
                      Reparar Banco
                    </button>
@@ -242,7 +242,7 @@ const Login: React.FC = () => {
                  href="https://supabase.com/dashboard/project/taubsuolhawpdibrhtkb/settings/api" 
                  target="_blank" 
                  rel="noopener noreferrer"
-                 className="flex items-center gap-1 text-[#FF7A00] font-bold underline hover:text-[#E66E00] transition-colors"
+                 className="flex items-center gap-1 text-brand-primary font-bold underline hover:text-brand-primary/90 transition-colors"
                >
                  Pegar Chave Anon Public <ExternalLink size={12} />
                </a>

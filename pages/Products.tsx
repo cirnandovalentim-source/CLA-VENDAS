@@ -266,7 +266,7 @@ const Products: React.FC = () => {
 
         <div className="space-y-3 pb-20">
           {filteredProducts.map(product => (
-            <Card key={product.id} className="relative group hover:border-[#FF7A00] transition-colors">
+            <Card key={product.id} className="relative group hover:border-brand-primary transition-colors">
               <div className="flex justify-between items-start mb-2">
                 <div>
                    <span className="text-[10px] text-gray-500 uppercase tracking-wide bg-gray-100 dark:bg-white/5 px-2 py-1 rounded-lg font-bold">{product.categoria}</span>
@@ -281,7 +281,7 @@ const Products: React.FC = () => {
                  </div>
                  <div className="text-right">
                     <p className="text-[10px] text-gray-500 font-bold uppercase">Parcelado</p>
-                    <p className="text-[#FF7A00] font-bold">R$ {product.valor_parcelado.toFixed(2)}</p>
+                    <p className="text-brand-primary font-bold">R$ {product.valor_parcelado.toFixed(2)}</p>
                  </div>
               </div>
               

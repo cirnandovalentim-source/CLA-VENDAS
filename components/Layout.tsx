@@ -14,9 +14,9 @@ const BottomNavItem: React.FC<{
   return (
     <button 
       onClick={() => navigate(to)}
-      className={`flex flex-col items-center justify-center w-full gap-1.5 transition-all active:scale-95 ${isActive ? 'text-[#FF7A00]' : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300'}`}
+      className={`flex flex-col items-center justify-center w-full gap-1.5 transition-all active:scale-95 ${isActive ? 'text-brand-primary' : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300'}`}
     >
-      <div className={`transition-all duration-300 p-1 rounded-xl ${isActive ? 'bg-[#FF7A00]/10 -translate-y-1' : ''}`}>
+      <div className={`transition-all duration-300 p-1 rounded-xl ${isActive ? 'bg-brand-primary/10 -translate-y-1' : ''}`}>
         {icon}
       </div>
       <span className={`text-[10px] font-bold ${isActive ? 'opacity-100' : 'opacity-70'}`}>{label}</span>
@@ -85,7 +85,7 @@ const Layout: React.FC = () => {
       <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50">
         <button 
           onClick={() => navigate(ROUTES.NEW_SALE)}
-          className="bg-[#FF7A00] text-white w-14 h-14 rounded-full shadow-[0_8px_20px_rgba(255,122,0,0.4)] hover:bg-[#E66E00] active:scale-90 transition-all border-[4px] border-[#F3F4F6] dark:border-[#121212] flex items-center justify-center"
+          className="bg-brand-primary text-white w-14 h-14 rounded-full shadow-[0_8px_20px_rgba(255,122,0,0.4)] hover:bg-brand-primary/90 active:scale-90 transition-all border-[4px] border-[#F3F4F6] dark:border-[#121212] flex items-center justify-center"
         >
           {ICONS.Add}
         </button>

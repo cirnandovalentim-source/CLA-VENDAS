@@ -4,10 +4,12 @@ import { useNavigate } from 'react-router-dom';
 import { ICONS, ROUTES } from '../constants';
 import { Card } from '../components/ui';
 import { dataService, authService } from '../services/mockSupabase';
+import { useTheme, PrimaryColor } from '../contexts/ThemeContext';
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const user = authService.getSession();
+  const { primaryColor, setPrimaryColor } = useTheme();
   const [stats, setStats] = useState({
     totalVendido: 0,
     totalRecebido: 0,
@@ -58,14 +60,14 @@ const Dashboard: React.FC = () => {
     <div className="animate-fade-in relative bg-[#F3F4F6] dark:bg-[#121212] min-h-screen pb-24">
       
       {/* 1. TOP HEADER (Orange Background) - Overlapping style */}
-      <div className="bg-[#FF7A00] pt-12 pb-24 px-6 rounded-b-[40px] shadow-lg relative z-0">
+      <div className="bg-brand-primary pt-12 pb-24 px-6 rounded-b-[40px] shadow-lg relative z-0">
         <div className="flex justify-between items-center text-white">
           <div className="flex items-center gap-3">
              <div className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center text-white font-bold border border-white/30">
                 {user?.nome?.charAt(0) || 'U'}
              </div>
              <div>
-                <p className="text-orange-100 text-xs font-medium">Bem-vindo,</p>
+                <p className="text-white/80 text-xs font-medium">Bem-vindo,</p>
                 <h1 className="text-xl font-bold leading-tight">{user?.nome?.split(' ')[0] || 'Usuário'}!</h1>
              </div>
           </div>
@@ -81,7 +83,7 @@ const Dashboard: React.FC = () => {
              >
                 {ICONS.Alert}
                 {hasNotifications && (
-                    <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-white rounded-full border-2 border-[#FF7A00]"></span>
+                    <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-white rounded-full border-2 border-brand-primary"></span>
                 )}
              </button>
 
@@ -117,7 +119,7 @@ const Dashboard: React.FC = () => {
                   <p className="text-gray-500 dark:text-gray-400 text-xs font-bold mb-1">
                       {isSeller ? 'VALOR A RECEBER' : 'TOTAL VENDIDO'}
                   </p>
-                  <h2 className="text-3xl font-black text-[#FF7A00] tracking-tight">
+                  <h2 className="text-3xl font-black text-brand-primary tracking-tight">
                      {isSeller ? formatCurrency(commissionValue) : formatCurrency(stats.totalVendido)}
                   </h2>
                </div>
@@ -133,7 +135,7 @@ const Dashboard: React.FC = () => {
 
             {/* Progress Bar Visual */}
             <div className="mt-5 w-full h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden flex">
-               <div className="h-full bg-[#FF7A00]" style={{ width: '70%' }}></div>
+               <div className="h-full bg-brand-primary" style={{ width: '70%' }}></div>
                <div className="h-full bg-gray-300 dark:bg-gray-600" style={{ width: '30%' }}></div>
             </div>
 
@@ -141,7 +143,7 @@ const Dashboard: React.FC = () => {
             <div className="flex gap-3 mt-6">
                <button 
                   onClick={() => navigate(ROUTES.NEW_SALE)}
-                  className="flex-1 bg-[#FF7A00]/10 dark:bg-[#FF7A00]/20 text-[#FF7A00] py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-[#FF7A00]/20 transition-colors"
+                  className="flex-1 bg-brand-primary/10 dark:bg-brand-primary/20 text-brand-primary py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-brand-primary/20 transition-colors"
                >
                   {ICONS.Add} Nova Venda
                </button>
@@ -188,7 +190,7 @@ const Dashboard: React.FC = () => {
              <div className="grid grid-cols-2 gap-3">
                 <button 
                    onClick={() => navigate(ROUTES.PAYMENTS)}
-                   className="bg-[#FF7A00] text-white py-3 px-4 rounded-xl font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-orange-500/20 hover:bg-[#E66E00] transition-colors"
+                   className="bg-brand-primary text-white py-3 px-4 rounded-xl font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-brand-primary/20 hover:bg-brand-primary/90 transition-colors"
                 >
                    {ICONS.Payments} Receber
                 </button>
@@ -222,15 +224,15 @@ const Dashboard: React.FC = () => {
 
       {/* 4. MARKETING BANNER - "Não deixe nada para depois" style */}
       <div className="px-5 mt-6">
-         <div className="bg-gradient-to-r from-[#FF7A00] to-[#FF9E00] dark:from-[#FF7A00] dark:to-[#FF9E00] rounded-[24px] p-6 text-white relative overflow-hidden shadow-lg">
+         <div className="bg-gradient-to-r from-brand-primary to-brand-primary/80 dark:from-brand-primary dark:to-brand-primary/80 rounded-[24px] p-6 text-white relative overflow-hidden shadow-lg">
             <div className="relative z-10 w-2/3">
                <h3 className="text-lg font-black leading-tight mb-2">Bata sua meta hoje mesmo!</h3>
-               <p className="text-orange-100 text-xs font-medium mb-4">
+               <p className="text-white/80 text-xs font-medium mb-4">
                   Registre suas vendas e acompanhe o crescimento do seu negócio em tempo real.
                </p>
                <button 
                   onClick={() => navigate(ROUTES.NEW_SALE)}
-                  className="bg-white text-[#FF7A00] px-4 py-2 rounded-full text-xs font-bold shadow-sm"
+                  className="bg-white text-brand-primary px-4 py-2 rounded-full text-xs font-bold shadow-sm"
                >
                   Vender Agora
                </button>
@@ -251,7 +253,7 @@ const Dashboard: React.FC = () => {
       <div className="px-5 pb-6">
          <div className="bg-white dark:bg-[#1E1E1E] rounded-[20px] p-4 flex items-center justify-between border border-gray-100 dark:border-[#333] shadow-sm cursor-pointer mb-4" onClick={() => navigate(ROUTES.SETTINGS)}>
             <div className="flex items-center gap-3">
-               <div className="p-2 bg-[#FF7A00]/10 text-[#FF7A00] rounded-lg">
+               <div className="p-2 bg-brand-primary/10 text-brand-primary rounded-lg">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
                </div>
                <div>
@@ -262,15 +264,30 @@ const Dashboard: React.FC = () => {
             <div className="text-gray-400">{ICONS.Right}</div>
          </div>
 
+         {/* THEME COLOR PICKER */}
+         <div className="bg-white dark:bg-[#1E1E1E] rounded-[20px] p-4 border border-gray-100 dark:border-[#333] shadow-sm mb-4">
+            <p className="font-bold text-sm text-gray-900 dark:text-white mb-3">Cor do Tema</p>
+            <div className="flex items-center gap-3">
+               {(['#FF7A00', '#3B82F6', '#10B981', '#8B5CF6', '#EC4899', '#EAB308'] as PrimaryColor[]).map(color => (
+                  <button
+                     key={color}
+                     onClick={() => setPrimaryColor(color)}
+                     className={`w-8 h-8 rounded-full shadow-sm transition-transform ${primaryColor === color ? 'scale-125 ring-2 ring-offset-2 ring-gray-400 dark:ring-gray-600' : 'hover:scale-110'}`}
+                     style={{ backgroundColor: color }}
+                  />
+               ))}
+            </div>
+         </div>
+
          {/* PROMOTIONAL BANNER */}
          <div className="w-full bg-gradient-to-br from-[#1E1E1E] to-[#000] dark:from-[#333] dark:to-[#000] rounded-[20px] p-4 text-center border border-gray-800 shadow-lg relative overflow-hidden group">
             {/* Background Texture Effect */}
             <div className="absolute inset-0 bg-[radial-gradient(#ffffff33_1px,transparent_1px)] [background-size:16px_16px] opacity-10"></div>
             
             <div className="relative z-10">
-                <p className="text-[#FF7A00] font-bold text-[10px] uppercase tracking-[0.2em] mb-1">Oficial</p>
+                <p className="text-brand-primary font-bold text-[10px] uppercase tracking-[0.2em] mb-1">Oficial</p>
                 <h3 className="text-white font-black text-lg italic tracking-tighter">O APP DO CREDIARISTA</h3>
-                <div className="w-8 h-1 bg-[#FF7A00] mx-auto mt-2 rounded-full"></div>
+                <div className="w-8 h-1 bg-brand-primary mx-auto mt-2 rounded-full"></div>
             </div>
          </div>
       </div>

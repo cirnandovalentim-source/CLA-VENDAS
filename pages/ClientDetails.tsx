@@ -540,7 +540,7 @@ const ClientDetails: React.FC = () => {
         </button>
         <h1 className="text-lg font-bold text-gray-900 dark:text-white flex-1 truncate">{client.nome}</h1>
         {isAdmin && (
-            <button onClick={handleOpenEditClient} className="text-[#FF7A00]">
+            <button onClick={handleOpenEditClient} className="text-brand-primary">
                 {ICONS.Edit}
             </button>
         )}
@@ -549,7 +549,7 @@ const ClientDetails: React.FC = () => {
       <div className="flex-1 overflow-y-auto p-4 custom-scrollbar pb-24 space-y-6">
         <Card>
            <div className="flex items-start gap-4 mb-4">
-               <div className="w-16 h-16 rounded-full bg-gray-100 dark:bg-[#333] flex items-center justify-center overflow-hidden border-2 border-[#FF7A00] text-gray-500 font-bold text-2xl shrink-0">
+               <div className="w-16 h-16 rounded-full bg-gray-100 dark:bg-[#333] flex items-center justify-center overflow-hidden border-2 border-brand-primary text-gray-500 font-bold text-2xl shrink-0">
                   {client.foto_url ? (
                       <img src={client.foto_url} alt={client.nome} className="w-full h-full object-cover" />
                   ) : (
@@ -586,7 +586,7 @@ const ClientDetails: React.FC = () => {
            </Card>
            <Card className="bg-white dark:bg-[#1E1E1E] border border-gray-200 dark:border-[#333] shadow-sm">
               <p className="text-gray-500 dark:text-gray-400 text-xs uppercase font-bold">Em Aberto</p>
-              <p className="text-[#FF7A00] font-bold text-lg">R$ {totalDebt.toFixed(2)}</p>
+              <p className="text-brand-primary font-bold text-lg">R$ {totalDebt.toFixed(2)}</p>
            </Card>
         </div>
 
@@ -631,7 +631,7 @@ const ClientDetails: React.FC = () => {
                          </div>
                       </div>
                       <div className="text-right">
-                         <p className={`font-bold ${isReturned ? 'text-gray-400 line-through' : 'text-[#FF7A00]'}`}>
+                         <p className={`font-bold ${isReturned ? 'text-gray-400 line-through' : 'text-brand-primary'}`}>
                             R$ {saleDynamicTotal.toFixed(2)}
                          </p>
                          <div className="flex justify-end mt-1 text-gray-500">
@@ -663,7 +663,7 @@ const ClientDetails: React.FC = () => {
                                 </div>
                                 {isAdmin && !isReturned && (
                                     <div className="flex gap-2">
-                                        <button onClick={(e) => { e.stopPropagation(); setReturnSaleId(sale.id); }} className="text-xs text-orange-500 dark:text-orange-400 flex items-center gap-1 hover:underline">
+                                        <button onClick={(e) => { e.stopPropagation(); setReturnSaleId(sale.id); }} className="text-xs text-brand-primary dark:text-brand-primary/80 flex items-center gap-1 hover:underline">
                                             {ICONS.Return} Devolver
                                         </button>
                                         <button onClick={(e) => { e.stopPropagation(); setDeleteSaleId(sale.id); }} className="text-xs text-red-500 dark:text-red-400 flex items-center gap-1 hover:underline">
@@ -675,7 +675,7 @@ const ClientDetails: React.FC = () => {
                            {installments.map(inst => (
                               <div key={inst.id} className="flex items-center justify-between p-3 bg-white dark:bg-[#1E1E1E] rounded-xl border border-gray-200 dark:border-[#333] shadow-sm">
                                  <div className="flex items-center gap-3">
-                                    <div className={`w-2 h-2 rounded-full ${inst.pago ? 'bg-green-500' : 'bg-[#FF7A00]'}`} />
+                                    <div className={`w-2 h-2 rounded-full ${inst.pago ? 'bg-green-500' : 'bg-brand-primary'}`} />
                                     <div>
                                        <p className="text-gray-900 dark:text-white text-sm font-medium">Parcela {inst.numero_parcela}</p>
                                        <p className="text-gray-500 text-xs">{format(new Date(inst.data_vencimento), 'dd/MM/yyyy')}</p>
@@ -718,7 +718,7 @@ const ClientDetails: React.FC = () => {
              <div className="relative">
                 <div 
                   onClick={() => photoInputRef.current?.click()}
-                  className={`w-24 h-24 rounded-full bg-gray-100 dark:bg-[#333] border-2 border-dashed ${processingImage ? 'border-[#FF7A00] animate-pulse' : 'border-gray-300 dark:border-gray-500'} flex items-center justify-center overflow-hidden cursor-pointer hover:border-[#FF7A00] transition-colors`}
+                  className={`w-24 h-24 rounded-full bg-gray-100 dark:bg-[#333] border-2 border-dashed ${processingImage ? 'border-brand-primary animate-pulse' : 'border-gray-300 dark:border-gray-500'} flex items-center justify-center overflow-hidden cursor-pointer hover:border-brand-primary transition-colors`}
                 >
                    {clientForm.foto_url ? (
                      <img src={clientForm.foto_url} alt="Foto" className="w-full h-full object-cover" />
@@ -796,7 +796,7 @@ const ClientDetails: React.FC = () => {
              <p className="text-gray-600 dark:text-gray-300">Confirmar devolução?</p>
              <div className="grid grid-cols-2 gap-3">
                  <Button variant="secondary" onClick={() => setReturnSaleId(null)}>Cancelar</Button>
-                 <Button variant="primary" onClick={handleReturnSale} isLoading={loading} className="bg-orange-600">Confirmar</Button>
+                 <Button variant="primary" onClick={handleReturnSale} isLoading={loading} className="bg-brand-primary">Confirmar</Button>
              </div>
          </div>
       </Modal>
@@ -814,7 +814,7 @@ const ClientDetails: React.FC = () => {
       <Modal isOpen={isMumbucaModalOpen} onClose={() => setIsMumbucaModalOpen(false)} title="Cartão Mumbuca">
         <div className="space-y-6">
             {/* Credit Card Visual */}
-            <div className="bg-gradient-to-br from-red-600 to-orange-600 p-6 rounded-2xl text-white shadow-xl relative overflow-hidden">
+            <div className="bg-gradient-to-br from-red-600 to-brand-primary p-6 rounded-2xl text-white shadow-xl relative overflow-hidden">
                 <div className="absolute top-0 right-0 -mt-4 -mr-4 w-24 h-24 bg-white/10 rounded-full blur-xl"></div>
                 <div className="absolute bottom-0 left-0 -mb-4 -ml-4 w-20 h-20 bg-black/10 rounded-full blur-xl"></div>
                 
@@ -899,7 +899,7 @@ const ClientDetails: React.FC = () => {
                                             className="p-2 hover:bg-gray-100 dark:hover:bg-[#444] cursor-pointer text-sm flex justify-between"
                                         >
                                             <span>{p.nome}</span>
-                                            <span className="font-bold text-[#FF7A00]">R$ {p.valor_parcelado.toFixed(2)}</span>
+                                            <span className="font-bold text-brand-primary">R$ {p.valor_parcelado.toFixed(2)}</span>
                                         </div>
                                     ))
                                 }

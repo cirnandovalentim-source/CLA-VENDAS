@@ -330,7 +330,7 @@ const NewSale: React.FC = () => {
         <h1 className="text-lg font-bold">
           {step === 1 ? 'Selecionar Cliente' : step === 2 ? 'Adicionar Produtos' : 'Pagamento'}
         </h1>
-        <div className="ml-auto text-xs bg-[#FF7A00]/10 text-[#FF7A00] font-bold px-3 py-1.5 rounded-full">Passo {step}/3</div>
+        <div className="ml-auto text-xs bg-brand-primary/10 text-brand-primary font-bold px-3 py-1.5 rounded-full">Passo {step}/3</div>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
@@ -359,17 +359,17 @@ const NewSale: React.FC = () => {
              
              <div className="space-y-3 pb-20">
                  {filteredClients.map(c => (
-                   <Card key={c.id} onClick={() => handleClientSelect(c)} className="flex items-center justify-between hover:border-[#FF7A00] cursor-pointer transition-colors group">
+                   <Card key={c.id} onClick={() => handleClientSelect(c)} className="flex items-center justify-between hover:border-brand-primary cursor-pointer transition-colors group">
                      <div className="flex items-center gap-3">
                        <div className="w-12 h-12 rounded-full bg-gray-100 dark:bg-[#333] flex items-center justify-center text-gray-500 font-bold overflow-hidden border border-gray-200 dark:border-white/10">
                           {c.foto_url ? <img src={c.foto_url} className="w-full h-full object-cover" /> : c.nome.charAt(0)}
                        </div>
                        <div>
-                         <p className="font-bold text-gray-900 dark:text-white group-hover:text-[#FF7A00] transition-colors text-lg">{c.nome}</p>
+                         <p className="font-bold text-gray-900 dark:text-white group-hover:text-brand-primary transition-colors text-lg">{c.nome}</p>
                          <p className="text-gray-500 text-sm">{c.bairro || 'Endereço não informado'}</p>
                        </div>
                      </div>
-                     <div className="text-gray-300 group-hover:text-[#FF7A00]">{ICONS.Right}</div>
+                     <div className="text-gray-300 group-hover:text-brand-primary">{ICONS.Right}</div>
                    </Card>
                  ))}
                  {filteredClients.length === 0 && (
@@ -389,7 +389,7 @@ const NewSale: React.FC = () => {
                   <h3 className="text-gray-500 text-sm font-bold uppercase">Produtos Disponíveis</h3>
                   <button 
                     onClick={handleOpenNewProduct}
-                    className="text-xs bg-[#FF7A00] text-white px-3 py-2 rounded-xl font-bold flex items-center gap-1 shadow-lg shadow-orange-500/20"
+                    className="text-xs bg-brand-primary text-white px-3 py-2 rounded-xl font-bold flex items-center gap-1 shadow-lg shadow-brand-primary/20"
                   >
                     {ICONS.Add} Cadastrar Novo
                   </button>
@@ -425,7 +425,7 @@ const NewSale: React.FC = () => {
                     <div>
                       <p className="text-gray-900 dark:text-white font-bold">{p.nome}</p>
                       <div className="flex gap-2">
-                          <p className="text-[#FF7A00] font-bold text-sm">Prazo: R$ {p.valor_parcelado.toFixed(2)}</p>
+                          <p className="text-brand-primary font-bold text-sm">Prazo: R$ {p.valor_parcelado.toFixed(2)}</p>
                           <p className="text-green-600 font-bold text-sm">Vista: R$ {p.valor_avista.toFixed(2)}</p>
                       </div>
                     </div>
@@ -458,9 +458,9 @@ const NewSale: React.FC = () => {
                     </div>
                   </div>
                 ))}
-                <div className="mt-4 flex justify-between items-center bg-[#FF7A00]/10 p-4 rounded-2xl border border-[#FF7A00]/20">
-                  <span className="text-[#FF7A00] font-bold">Total (Prazo)</span>
-                  <span className="text-[#FF7A00] font-black text-xl">R$ {cartTotalParcelado.toFixed(2)}</span>
+                <div className="mt-4 flex justify-between items-center bg-brand-primary/10 p-4 rounded-2xl border border-brand-primary/20">
+                  <span className="text-brand-primary font-bold">Total (Prazo)</span>
+                  <span className="text-brand-primary font-black text-xl">R$ {cartTotalParcelado.toFixed(2)}</span>
                 </div>
               </div>
             )}
@@ -473,7 +473,7 @@ const NewSale: React.FC = () => {
              <div className="flex p-1 bg-white dark:bg-[#1E1E1E] rounded-xl border border-gray-200 dark:border-[#333]">
                 <button 
                   onClick={() => setPaymentType('PARCELADO')}
-                  className={`flex-1 py-3 text-sm font-bold rounded-lg transition-all flex flex-col items-center gap-1 ${paymentType === 'PARCELADO' ? 'bg-[#FF7A00] text-white shadow-md' : 'text-gray-500'}`}
+                  className={`flex-1 py-3 text-sm font-bold rounded-lg transition-all flex flex-col items-center gap-1 ${paymentType === 'PARCELADO' ? 'bg-brand-primary text-white shadow-md' : 'text-gray-500'}`}
                 >
                   <span>PARCELADO</span>
                   <span className="text-xs opacity-80">R$ {cartTotalParcelado.toFixed(2)}</span>
@@ -489,7 +489,7 @@ const NewSale: React.FC = () => {
 
              <Card className="text-center py-6 bg-white dark:bg-[#1E1E1E]">
                <p className="text-gray-400 text-xs font-bold uppercase mb-1">Valor Final da Venda</p>
-               <h2 className={`text-4xl font-black mb-2 ${paymentType === 'AVISTA' ? 'text-green-600' : 'text-[#FF7A00]'}`}>
+               <h2 className={`text-4xl font-black mb-2 ${paymentType === 'AVISTA' ? 'text-green-600' : 'text-brand-primary'}`}>
                    R$ {activeTotal.toFixed(2)}
                </h2>
                <div className="inline-block bg-gray-100 dark:bg-[#333] px-3 py-1 rounded-full text-xs text-gray-600 dark:text-gray-300 font-bold">
@@ -543,7 +543,7 @@ const NewSale: React.FC = () => {
                            <button 
                             key={num}
                             onClick={() => setInstallmentsCount(num)}
-                            className={`h-12 rounded-2xl font-bold transition-all shadow-sm ${installmentsCount === num ? 'bg-[#FF7A00] text-white shadow-orange-500/30 translate-y-[-2px]' : 'bg-white dark:bg-[#1E1E1E] text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-[#333]'}`}
+                            className={`h-12 rounded-2xl font-bold transition-all shadow-sm ${installmentsCount === num ? 'bg-brand-primary text-white shadow-brand-primary/30 translate-y-[-2px]' : 'bg-white dark:bg-[#1E1E1E] text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-[#333]'}`}
                            >
                              {num}x
                            </button>
@@ -575,12 +575,12 @@ const NewSale: React.FC = () => {
                       {/* --- EDITABLE DATE INPUT --- */}
                       <input 
                         type="date"
-                        className="text-gray-500 dark:text-gray-400 text-xs bg-transparent border-b border-gray-300 dark:border-gray-600 focus:border-[#FF7A00] focus:outline-none w-32 cursor-pointer"
+                        className="text-gray-500 dark:text-gray-400 text-xs bg-transparent border-b border-gray-300 dark:border-gray-600 focus:border-brand-primary focus:outline-none w-32 cursor-pointer"
                         value={inst.data_vencimento ? format(new Date(inst.data_vencimento), 'yyyy-MM-dd') : ''}
                         onChange={(e) => handleInstallmentDateChange(idx, e.target.value)}
                       />
                    </div>
-                   <span className="text-[#FF7A00] font-bold text-lg">R$ {inst.valor.toFixed(2)}</span>
+                   <span className="text-brand-primary font-bold text-lg">R$ {inst.valor.toFixed(2)}</span>
                  </div>
                ))}
              </div>
@@ -662,7 +662,7 @@ const NewSale: React.FC = () => {
                        type="number"
                        value={addItemForm.custom_parcelado}
                        onChange={(e) => setAddItemForm(prev => ({ ...prev, custom_parcelado: e.target.value }))}
-                       className="text-[#FF7A00] font-bold"
+                       className="text-brand-primary font-bold"
                    />
                </div>
             </div>
