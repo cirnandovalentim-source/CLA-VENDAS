@@ -913,14 +913,15 @@ const payInstallment = async (installmentId: string, vendedorId: string, actualA
 
 const addExpense = async (description: string, value: number, vendedorId: string, categoria?: string): Promise<void> => {
      // NOTE: vendedorId here represents who *performed* the action OR which wallet it affects
+     const finalDesc = categoria ? `[${categoria}] ${description}` : description;
      if (isSupabaseConfigured) {
-         const { error } = await supabase.from('cash_flow').insert([{ tipo: 'SAIDA', valor: value, descricao: description, vendedor_id: vendedorId, data: new Date().toISOString(), categoria }]);
+         const { error } = await supabase.from('cash_flow').insert([{ tipo: 'SAIDA', valor: value, descricao: finalDesc, vendedor_id: vendedorId, data: new Date().toISOString() }]);
          if (error) handleSupabaseError(error);
          return;
      }
      await delay(300);
      const cash = getStorage<CashEntry[]>('cash', []);
-     cash.push({ id: uuidv4(), data: new Date().toISOString(), tipo: 'SAIDA', valor: value, descricao: description, vendedor_id: vendedorId, categoria });
+     cash.push({ id: uuidv4(), data: new Date().toISOString(), tipo: 'SAIDA', valor: value, descricao: finalDesc, vendedor_id: vendedorId, categoria });
      setStorage('cash', cash);
 };
 
@@ -937,17 +938,30 @@ const deleteCashEntry = async (id: string): Promise<void> => {
 
 const getCashFlow = async (sellerIdOverride?: string): Promise<CashEntry[]> => {
       const filterId = sellerIdOverride || getUserFilter();
+      
+      const parseCategoria = (entries: any[]) => {
+          return entries.map(e => {
+              if (e.tipo === 'SAIDA' && e.descricao) {
+                  const match = e.descricao.match(/^\[(.*?)\]\s*(.*)$/);
+                  if (match) {
+                      return { ...e, categoria: match[1], descricao: match[2] };
+                  }
+              }
+              return e;
+          });
+      };
+
       if (isSupabaseConfigured) {
           let query = supabase.from('cash_flow').select('*').order('data', { ascending: false });
           if (filterId && filterId !== 'all') { query = query.eq('vendedor_id', filterId); } // STRICT SECURITY or Specific Seller
           const { data, error } = await query;
           if (error && error.code !== '42P01') handleSupabaseError(error);
-          return data || [];
+          return parseCategoria(data || []);
       }
       await delay(300);
       let cash = getStorage<CashEntry[]>('cash', []);
       if (filterId && filterId !== 'all') cash = cash.filter(c => c.vendedor_id === filterId);
-      return cash.sort((a,b) => new Date(b.data).getTime() - new Date(a.data).getTime());
+      return parseCategoria(cash).sort((a,b) => new Date(b.data).getTime() - new Date(a.data).getTime());
 };
   
 const getDashboardStats = async () => {
@@ -1050,8 +1064,20 @@ const getDetailedReports = async (startDate: Date, endDate: Date, sellerId?: str
 
         if (sError) handleSupabaseError(sError);
         
+        const parseCategoria = (entries: any[]) => {
+            return entries.map(e => {
+                if (e.descricao) {
+                    const match = e.descricao.match(/^\[(.*?)\]\s*(.*)$/);
+                    if (match) {
+                        return { ...e, categoria: match[1], descricao: match[2] };
+                    }
+                }
+                return e;
+            });
+        };
+
         const sales = (sData || []).map((s: any) => ({ ...s, cliente_nome: s.clients?.nome || 'Desconhecido' }));
-        return processData(sales, cData || [], eData || []);
+        return processData(sales, cData || [], parseCategoria(eData || []));
     }
     
     await delay(500);

@@ -334,7 +334,14 @@ const Payments: React.FC = () => {
                     </div>
                     <div>
                       <p className="text-gray-900 dark:text-white font-medium">{entry.descricao}</p>
-                      <p className="text-xs text-gray-500">{format(new Date(entry.data), 'dd/MM HH:mm')}</p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <p className="text-xs text-gray-500">{format(new Date(entry.data), 'dd/MM HH:mm')}</p>
+                        {entry.categoria && (
+                          <span className="text-[10px] bg-gray-100 dark:bg-[#333] text-gray-600 dark:text-gray-400 px-2 py-0.5 rounded-full">
+                            {entry.categoria}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-1">
