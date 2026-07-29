@@ -77,20 +77,20 @@ export const FichaContent: React.FC<FichaContentProps> = ({ id, client, sale, in
 
             <div className="text-[9px] space-y-1 mb-2">
                 <div className="flex pb-0.5">
-                    <span className="font-bold w-[95px]">NOME DO CLIENTE</span>
-                    <span className="flex-1 px-1 font-semibold">{client.nome.toUpperCase()}</span>
+                    <span className="font-bold w-[95px] flex-shrink-0">NOME DO CLIENTE</span>
+                    <span className="flex-1 px-1 font-semibold">{client?.nome ? client.nome.toUpperCase() : ''}</span>
                 </div>
                 <div className="flex pb-0.5">
-                    <span className="font-bold w-[55px]">ENDEREÇO</span>
-                    <span className="flex-1 px-1 font-semibold truncate">{client.endereco ? client.endereco.toUpperCase() : ''}</span>
+                    <span className="font-bold w-[55px] flex-shrink-0">ENDEREÇO</span>
+                    <span className="flex-1 px-1 font-semibold break-words">{client?.endereco ? client.endereco.toUpperCase() : 'NÃO INFORMADO'}</span>
                 </div>
                 <div className="flex pb-0.5">
-                    <span className="font-bold w-[45px]">BAIRRO</span>
-                    <span className="flex-1 px-1 font-semibold">{client.bairro ? client.bairro.toUpperCase() : ''}</span>
+                    <span className="font-bold w-[45px] flex-shrink-0">BAIRRO</span>
+                    <span className="flex-1 px-1 font-semibold">{client?.bairro ? client.bairro.toUpperCase() : 'NÃO INFORMADO'}</span>
                 </div>
                 <div className="flex pb-0.5">
-                    <span className="font-bold w-[55px]">TELEFONE</span>
-                    <span className="flex-1 px-1 font-semibold">{client.telefone || ''}</span>
+                    <span className="font-bold w-[55px] flex-shrink-0">TELEFONE</span>
+                    <span className="flex-1 px-1 font-semibold">{client?.telefone || 'NÃO INFORMADO'}</span>
                 </div>
             </div>
 

@@ -101,20 +101,20 @@ export const ClientFichaContent: React.FC<ClientFichaContentProps> = ({ id, clie
             {/* CLIENT INFO */}
             <div className="text-[12px] space-y-1.5 mb-3">
                 <div className="flex pb-1 border-b border-gray-300 border-dashed">
-                    <span className="font-bold w-[130px]">NOME DO CLIENTE:</span>
-                    <span className="flex-1 px-1 font-bold text-[13px]">{client.nome.toUpperCase()}</span>
+                    <span className="font-bold w-[130px] flex-shrink-0">NOME DO CLIENTE:</span>
+                    <span className="flex-1 px-1 font-bold text-[13px]">{client?.nome ? client.nome.toUpperCase() : ''}</span>
                 </div>
                 <div className="flex pb-1 border-b border-gray-300 border-dashed">
-                    <span className="font-bold w-[130px]">ENDEREÇO:</span>
-                    <span className="flex-1 px-1 font-semibold">{client.endereco ? client.endereco.toUpperCase() : ''}</span>
+                    <span className="font-bold w-[130px] flex-shrink-0">ENDEREÇO:</span>
+                    <span className="flex-1 px-1 font-semibold break-words">{client?.endereco ? client.endereco.toUpperCase() : 'NÃO INFORMADO'}</span>
                 </div>
                 <div className="flex pb-1 border-b border-gray-300 border-dashed">
-                    <span className="font-bold w-[130px]">BAIRRO:</span>
-                    <span className="flex-1 px-1 font-semibold">{client.bairro ? client.bairro.toUpperCase() : ''}</span>
+                    <span className="font-bold w-[130px] flex-shrink-0">BAIRRO:</span>
+                    <span className="flex-1 px-1 font-semibold">{client?.bairro ? client.bairro.toUpperCase() : 'NÃO INFORMADO'}</span>
                 </div>
                 <div className="flex pb-1 border-b border-gray-300 border-dashed">
-                    <span className="font-bold w-[130px]">TELEFONE:</span>
-                    <span className="flex-1 px-1 font-bold">{client.telefone || ''}</span>
+                    <span className="font-bold w-[130px] flex-shrink-0">TELEFONE:</span>
+                    <span className="flex-1 px-1 font-bold">{client?.telefone || 'NÃO INFORMADO'}</span>
                 </div>
             </div>
 
