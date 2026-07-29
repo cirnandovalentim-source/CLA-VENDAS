@@ -4,6 +4,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ICONS, ROUTES } from '../constants';
 import { Button, Card, Badge, Modal, Input } from '../components/ui';
 import { ReceiptModal } from '../components/ReceiptModal';
+import { FichaModal } from '../components/FichaModal';
+import { ClientFichaModal } from '../components/ClientFichaModal';
 import { dataService, authService } from '../services/mockSupabase';
 import { Client, Sale, Installment, Product } from '../types';
 import { format } from 'date-fns';
@@ -41,6 +43,7 @@ const ClientDetails: React.FC = () => {
   const [isEditClientOpen, setIsEditClientOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [processingImage, setProcessingImage] = useState(false);
+  const [isClientFichaOpen, setIsClientFichaOpen] = useState(false);
 
   // File Upload
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -53,6 +56,12 @@ const ClientDetails: React.FC = () => {
       remaining: number,
       description: string,
       history: { date: string, paid: number, remaining: number }[]
+  } | null>(null);
+
+  // Ficha Modal State
+  const [fichaData, setFichaData] = useState<{
+      sale: Sale;
+      installments: Installment[];
   } | null>(null);
 
   // Forms
@@ -141,6 +150,11 @@ const ClientDetails: React.FC = () => {
           description: description,
           history: history
       });
+  };
+
+  const openFicha = (sale: Sale, saleId: string) => {
+      const saleInstallments = installmentsMap[saleId] || [];
+      setFichaData({ sale, installments: saleInstallments });
   };
 
   const handleOpenMumbuca = () => {
@@ -590,6 +604,28 @@ const ClientDetails: React.FC = () => {
            </Card>
         </div>
 
+        <div className="flex gap-2">
+           <button 
+               onClick={() => {
+                   const pending = allInstallments.filter(i => !i.pago).sort((a, b) => new Date(a.data_vencimento).getTime() - new Date(b.data_vencimento).getTime());
+                   if (pending.length > 0) {
+                       handleOpenPay(pending[0]);
+                   } else {
+                       alert("Não há parcelas pendentes para este cliente.");
+                   }
+               }}
+               className="flex-1 bg-brand-primary text-white py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 shadow-sm hover:bg-brand-primary/90 transition-colors"
+           >
+               {ICONS.Payments} Receber Pagamento
+           </button>
+           <button 
+               onClick={() => setIsClientFichaOpen(true)}
+               className="flex-1 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 border border-indigo-100 dark:border-indigo-800/30 hover:bg-indigo-100 transition-colors"
+           >
+               {ICONS.Printer} Imprimir Ficha Completa
+           </button>
+        </div>
+
         <h2 className="text-gray-900 dark:text-white font-bold text-lg pt-2">Histórico de Compras</h2>
         <div className="space-y-3">
            {sales.map(sale => {
@@ -647,6 +683,9 @@ const ClientDetails: React.FC = () => {
                                     <button onClick={(e) => { e.stopPropagation(); openReceipt('SALE', sale, sale.id); }} className="text-xs text-blue-500 dark:text-blue-400 flex items-center gap-1 hover:underline">
                                         {ICONS.Printer} Recibo
                                     </button>
+                                    <button onClick={(e) => { e.stopPropagation(); openFicha(sale, sale.id); }} className="text-xs text-indigo-500 dark:text-indigo-400 flex items-center gap-1 hover:underline">
+                                        {ICONS.FileText} Ficha
+                                    </button>
                                     {isAdmin && !isReturned && (
                                         <button onClick={(e) => { e.stopPropagation(); handleOpenEditSale(sale); }} className="text-xs text-gray-600 dark:text-gray-300 flex items-center gap-1 hover:underline">
                                             {ICONS.Edit} Editar
@@ -696,8 +735,8 @@ const ClientDetails: React.FC = () => {
                                                 {ICONS.Edit}
                                              </button>
                                          )}
-                                         <button onClick={() => handleOpenPay(inst)} className="p-1.5 text-green-600 dark:text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg">
-                                            {ICONS.Check}
+                                         <button onClick={() => handleOpenPay(inst)} className="px-2 py-1.5 text-green-600 dark:text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg flex items-center gap-1 font-bold text-xs bg-green-50 dark:bg-green-900/10">
+                                            {ICONS.Check} Pagar
                                          </button>
                                        </div>
                                     )}
@@ -958,6 +997,17 @@ const ClientDetails: React.FC = () => {
             history={receiptData.history}
           />
       )}
+
+      {fichaData && (
+          <FichaModal
+              isOpen={!!fichaData}
+              onClose={() => setFichaData(null)}
+              client={client}
+              sale={fichaData.sale}
+              installments={fichaData.installments}
+          />
+      )}
+      <ClientFichaModal isOpen={isClientFichaOpen} onClose={() => setIsClientFichaOpen(false)} client={client} sales={sales} installments={allInstallments} />
     </div>
   );
 };

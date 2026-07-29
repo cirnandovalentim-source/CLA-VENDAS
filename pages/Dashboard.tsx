@@ -5,6 +5,7 @@ import { ICONS, ROUTES } from '../constants';
 import { Card } from '../components/ui';
 import { dataService, authService } from '../services/mockSupabase';
 import { useTheme, PrimaryColor } from '../contexts/ThemeContext';
+import { BatchFichaModal } from '../components/BatchFichaModal';
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -24,6 +25,7 @@ const Dashboard: React.FC = () => {
   });
 
   const [valuesVisible, setValuesVisible] = useState(true);
+  const [batchModalOpen, setBatchModalOpen] = useState(false);
 
   useEffect(() => {
     const loadStats = async () => {
@@ -200,6 +202,16 @@ const Dashboard: React.FC = () => {
                 >
                    {ICONS.Clients} Clientes
                 </button>
+             </div>
+             
+             <div className="mt-3">
+                <button 
+                   onClick={() => setBatchModalOpen(true)}
+                   className="w-full bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 py-3 px-4 rounded-xl font-bold text-sm flex items-center justify-center gap-2 border border-indigo-100 dark:border-indigo-800/30 hover:bg-indigo-100 transition-colors"
+                >
+                   {ICONS.Printer} Imprimir Fichas em Lote
+                </button>
+             
                 
                 {/* Extra buttons for Admin */}
                 {user?.perfil === 'admin' && (
@@ -292,6 +304,7 @@ const Dashboard: React.FC = () => {
          </div>
       </div>
 
+      <BatchFichaModal isOpen={batchModalOpen} onClose={() => setBatchModalOpen(false)} />
     </div>
   );
 };

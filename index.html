@@ -155,17 +155,29 @@
       html.dark ::-webkit-scrollbar-thumb { background: #333; }
       
       @media print {
-        body * { visibility: hidden; }
-        #receipt-content, #receipt-content * { visibility: visible; }
-        #receipt-content { 
-            position: absolute; 
-            left: 0; 
-            top: 0; 
-            width: 100%; 
-            margin: 0; 
-            padding: 0; 
+        body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        html, body {
+            height: auto !important;
+            overflow: visible !important;
+        }
+        body * { 
+            visibility: hidden; 
+            transform: none !important; 
+            overflow: visible !important;
+        }
+        #receipt-content, #receipt-content *, #ficha-content, #ficha-content * { visibility: visible; }
+        #receipt-content, #ficha-content { 
+            position: absolute !important; 
+            left: 0 !important; 
+            top: 0 !important; 
+            margin: 0 !important; 
+            padding: 0 !important; 
             background-color: white !important; 
             color: black !important; 
+            z-index: 999999 !important;
+        }
+        #receipt-content {
+            width: 100%;
             border: none !important;
         }
         /* Ensure inputs look like text */
@@ -191,7 +203,8 @@
         "date-fns/": "https://esm.sh/date-fns@3.6.0/",
         "date-fns/locale": "https://esm.sh/date-fns@3.6.0/locale?bundle",
         "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.39.0?bundle",
-        "prop-types": "https://esm.sh/prop-types@15.8.1"
+        "prop-types": "https://esm.sh/prop-types@15.8.1",
+        "qrcode.react": "https://esm.sh/qrcode.react@3.1.0?bundle&deps=react@18.2.0,react-dom@18.2.0"
       }
     }
     </script>

@@ -1,9 +1,11 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Modal, Button } from './ui';
 import { Client } from '../types';
 import { format } from 'date-fns';
 import { ICONS } from '../constants';
+import { jsPDF } from 'jspdf';
+import html2canvas from 'html2canvas';
 
 interface ReceiptModalProps {
   isOpen: boolean;
@@ -20,10 +22,44 @@ interface ReceiptModalProps {
 export const ReceiptModal: React.FC<ReceiptModalProps> = ({ 
     isOpen, onClose, type, data, client, totalValue, remaining, description, history 
 }) => {
+  const [isGenerating, setIsGenerating] = useState(false);
+
   if (!isOpen || !data) return null;
 
-  const handlePrint = () => {
-    window.print();
+  const handlePrint = async () => {
+    const element = document.getElementById('receipt-content');
+    if (!element) return;
+    
+    setIsGenerating(true);
+    try {
+        const canvas = await html2canvas(element, {
+            scale: 3, 
+            useCORS: true,
+            logging: false,
+            backgroundColor: "#ffffff"
+        });
+        
+        const imgData = canvas.toDataURL('image/png');
+        
+        // Approx 8cm width (80mm) standard thermal receipt, height auto based on content.
+        // Let's use 80mm width, and height proportional to the canvas.
+        const pdfWidth = 80;
+        const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+        
+        const pdf = new jsPDF({
+            orientation: 'portrait',
+            unit: 'mm',
+            format: [pdfWidth, pdfHeight]
+        });
+        
+        pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+        pdf.save(`Recibo_${client.nome.replace(/\s+/g, '_')}.pdf`);
+    } catch (error) {
+        console.error("Erro ao gerar PDF:", error);
+        alert("Não foi possível gerar o PDF do recibo.");
+    } finally {
+        setIsGenerating(false);
+    }
   };
 
   const handleShareWhatsapp = () => {
@@ -259,13 +295,15 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
              <Button 
                 variant="secondary" 
                 onClick={handlePrint} 
+                disabled={isGenerating}
                 icon={ICONS.Printer}
                 className="flex-1"
              >
-                Imprimir
+                {isGenerating ? 'Gerando...' : 'PDF'}
              </Button>
              <Button 
                 onClick={handleShareWhatsapp} 
+                disabled={isGenerating}
                 icon={ICONS.Share} 
                 className="flex-[2] bg-green-600 hover:bg-green-700 border-none shadow-lg shadow-green-600/20"
              >
