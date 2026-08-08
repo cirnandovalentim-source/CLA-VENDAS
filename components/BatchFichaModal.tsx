@@ -72,19 +72,28 @@ export const BatchFichaModal: React.FC<BatchFichaModalProps> = ({ isOpen, onClos
         });
 
         const positions = [
-            { x: 10, y: 10 },
-            { x: 110, y: 10 },
-            { x: 10, y: 140 },
-            { x: 110, y: 140 }
+            { x: 7.5, y: 9 },
+            { x: 107.5, y: 9 },
+            { x: 7.5, y: 149 },
+            { x: 107.5, y: 149 }
         ];
 
         for (let i = 0; i < selectedSales.length; i++) {
             const sid = selectedSales[i];
-            const el = document.getElementById(`batch-ficha-${sid}`);
+            const el = document.getElementById(`batch-ficha-print-${sid}`);
             if (el) {
-                const canvas = await html2canvas(el, { scale: 4, useCORS: true, logging: false, backgroundColor: "#ffffff" });
+                const canvas = await html2canvas(el, { 
+                    scale: 3, 
+                    useCORS: true, 
+                    logging: false, 
+                    backgroundColor: "#ffffff",
+                    scrollX: 0,
+                    scrollY: 0,
+                    windowWidth: 1000,
+                    windowHeight: 1000
+                });
                 const imgData = canvas.toDataURL('image/png');
-                pdf.addImage(imgData, 'PNG', positions[i].x, positions[i].y, 90, 120);
+                pdf.addImage(imgData, 'PNG', positions[i].x, positions[i].y, 95, 135);
             }
         }
         
@@ -101,58 +110,88 @@ export const BatchFichaModal: React.FC<BatchFichaModalProps> = ({ isOpen, onClos
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Imprimir Fichas em Lote (4 por página)">
-      <div className="flex flex-col items-center">
-        
-        {/* Hidden Container for rendering */}
-        <div style={{ position: 'absolute', left: '-9999px', top: 0 }}>
+      <div className="flex flex-col items-center w-full">
+        {/* Offscreen print elements container */}
+        <div style={{ position: 'fixed', left: '-9999px', top: '0', pointerEvents: 'none', zIndex: -9999 }}>
             {selectedSales.map(sid => {
                 const s = allSales.find(x => x.id === sid);
                 const c = s ? allClients[s.cliente_id] : null;
                 const insts = allInstallments[sid] || [];
                 if (s && c) {
-                    return <FichaContent key={sid} id={`batch-ficha-${sid}`} client={c} sale={s} installments={insts} />
+                    return <FichaContent key={sid} id={`batch-ficha-print-${sid}`} client={c} sale={s} installments={insts} />;
                 }
                 return null;
             })}
         </div>
-
+        
         {loading ? (
             <p className="py-10 text-gray-500">Carregando dados...</p>
         ) : (
-            <div className="w-full text-left">
-                <p className="text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
-                    Selecione até 4 clientes/vendas para imprimir em uma folha A4. ({selectedSales.length}/4)
-                </p>
-                {selectedSales.length < 4 && (
-                    <select className="w-full text-sm p-3 rounded border border-gray-300 dark:border-[#444] bg-white dark:bg-[#1E1E1E]" onChange={handleSelectSale} defaultValue="">
-                        <option value="" disabled>Selecione uma venda para adicionar...</option>
-                        {allSales.filter(s => !selectedSales.includes(s.id)).map(s => (
-                            <option key={s.id} value={s.id}>{s.cliente_nome} - {s.descricao}</option>
-                        ))}
-                    </select>
-                )}
-                
+            <div className="w-full text-left space-y-4">
+                <div>
+                    <p className="text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
+                        Selecione até 4 clientes/vendas para imprimir em uma folha A4. ({selectedSales.length}/4)
+                    </p>
+                    {selectedSales.length < 4 && (
+                        <select className="w-full text-sm p-3 rounded border border-gray-300 dark:border-[#444] bg-white dark:bg-[#1E1E1E]" onChange={handleSelectSale} defaultValue="">
+                            <option value="" disabled>Selecione uma venda para adicionar...</option>
+                            {allSales.filter(s => !selectedSales.includes(s.id)).map(s => (
+                                <option key={s.id} value={s.id}>{s.cliente_nome} - {s.descricao}</option>
+                            ))}
+                        </select>
+                    )}
+                    
+                    {selectedSales.length > 0 && (
+                        <ul className="mt-3 space-y-2">
+                            {selectedSales.map((sid, idx) => {
+                                const s = allSales.find(x => x.id === sid);
+                                return (
+                                    <li key={sid} className="flex justify-between items-center text-sm bg-gray-50 dark:bg-[#252525] p-2.5 rounded border border-gray-200 dark:border-[#444]">
+                                        <div className="flex items-center gap-2 truncate">
+                                            <span className="font-bold text-gray-500 w-5">{idx + 1}.</span>
+                                            <span className="font-semibold text-gray-800 dark:text-gray-200">{s?.cliente_nome}</span>
+                                            <span className="text-gray-500 text-xs truncate">({s?.descricao})</span>
+                                        </div>
+                                        <button onClick={() => removeSale(sid)} className="text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 p-1 rounded font-bold px-2 text-xs transition-colors flex-shrink-0">
+                                            Remover
+                                        </button>
+                                    </li>
+                                )
+                            })}
+                        </ul>
+                    )}
+                </div>
+
+                {/* VISUAL PREVIEW AREA */}
                 {selectedSales.length > 0 ? (
-                    <ul className="mt-4 space-y-2">
-                        {selectedSales.map((sid, idx) => {
-                            const s = allSales.find(x => x.id === sid);
-                            return (
-                                <li key={sid} className="flex justify-between items-center text-sm bg-gray-50 dark:bg-[#252525] p-3 rounded border border-gray-200 dark:border-[#444]">
-                                    <div className="flex items-center gap-2">
-                                        <span className="font-bold text-gray-500 w-5">{idx + 1}.</span>
-                                        <span className="font-medium text-gray-800 dark:text-gray-200">{s?.cliente_nome}</span>
-                                        <span className="text-gray-500 text-xs">({s?.descricao})</span>
-                                    </div>
-                                    <button onClick={() => removeSale(sid)} className="text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 p-1 rounded font-bold px-2 transition-colors">
-                                        Remover
-                                    </button>
-                                </li>
-                            )
-                        })}
-                    </ul>
+                    <div>
+                        <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                                Pré-visualização das Fichas Selecionadas
+                            </span>
+                            <span className="text-[11px] text-gray-500">
+                                Confira as informações antes de gerar o PDF
+                            </span>
+                        </div>
+                        <div className="bg-zinc-200 dark:bg-[#1a1a1a] p-4 rounded-lg border border-zinc-300 dark:border-[#444] max-h-[50vh] overflow-auto shadow-inner flex flex-wrap gap-4 justify-center">
+                            {selectedSales.map(sid => {
+                                const s = allSales.find(x => x.id === sid);
+                                const c = s ? allClients[s.cliente_id] : null;
+                                const insts = allInstallments[sid] || [];
+                                if (s && c) {
+                                    return (
+                                        <div key={sid} className="bg-white rounded shadow border border-zinc-300 p-1 flex justify-center">
+                                            <FichaContent id={`batch-ficha-${sid}`} client={c} sale={s} installments={insts} />
+                                        </div>
+                                    );
+                                }
+                                return null;
+                            })}
+                        </div>
+                    </div>
                 ) : (
-                    <div className="mt-4 p-8 text-center border-2 border-dashed border-gray-300 dark:border-[#444] rounded text-gray-500 text-sm">
-                        Nenhuma venda selecionada ainda.
+                    <div className="p-8 text-center border-2 border-dashed border-gray-300 dark:border-[#444] rounded text-gray-500 text-sm">
+                        Nenhuma venda selecionada ainda. Adicione vendas para pré-visualizar as fichas.
                     </div>
                 )}
             </div>
