@@ -36,7 +36,8 @@ import {
   Camera,
   Share2,
   Banknote,
-  History
+  History,
+  FileText
 } from 'lucide-react';
 
 export const ICONS = {
@@ -76,7 +77,8 @@ export const ICONS = {
   Camera: <Camera size={20} />,
   Share: <Share2 size={20} />,
   Money: <Banknote size={20} />,
-  History: <History size={20} />
+  History: <History size={20} />,
+  FileText: <FileText size={16} />
 };
 
 export const ROUTES = {
