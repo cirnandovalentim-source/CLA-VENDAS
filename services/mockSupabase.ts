@@ -1379,8 +1379,206 @@ const importBackupData = async (jsonData: string): Promise<void> => {
       }
 };
 
+const adjustClientDebt = async (clientId: string, newTargetDebt: number, vendedorId: string, updateDates: boolean = true): Promise<void> => {
+    // 1. Get client sales and open installments
+    const sales = await getSalesByClient(clientId);
+    const activeSales = sales.filter(s => s.status !== 'DEVOLVIDO');
+    
+    let allInstallments: Installment[] = [];
+    for (const sale of activeSales) {
+        const insts = await getInstallmentsBySale(sale.id);
+        allInstallments.push(...insts);
+    }
+    
+    const openInstallments = allInstallments
+        .filter(i => !i.pago)
+        .sort((a, b) => new Date(a.data_vencimento).getTime() - new Date(b.data_vencimento).getTime());
+        
+    const currentDebt = Number(openInstallments.reduce((sum, i) => sum + i.valor, 0).toFixed(2));
+    const diff = Number((newTargetDebt - currentDebt).toFixed(2));
+
+    if (Math.abs(diff) < 0.01) return; // No change needed
+
+    const today = new Date();
+
+    if (diff < 0) {
+        // --- DECREASE DEBT (Give "baixa" on open installments) ---
+        let debtToClear = Math.abs(diff);
+
+        for (let i = 0; i < openInstallments.length; i++) {
+            if (debtToClear <= 0.001) break;
+            const inst = openInstallments[i];
+
+            if (inst.valor <= debtToClear + 0.009) {
+                // Mark as fully paid
+                const paidVal = inst.valor;
+                debtToClear -= paidVal;
+
+                if (isSupabaseConfigured) {
+                    try {
+                        await supabase.from('installments').update({
+                            pago: true,
+                            data_pagamento: today.toISOString()
+                        }).eq('id', inst.id);
+
+                        await supabase.from('cash_flow').insert([{
+                            tipo: 'ENTRADA',
+                            valor: paidVal,
+                            descricao: `Ajuste Saldo Devedor - Baixa Parcela ${inst.numero_parcela}`,
+                            vendedor_id: vendedorId,
+                            venda_id: inst.venda_id,
+                            data: today.toISOString()
+                        }]);
+                    } catch (e) {
+                        if (!isNetworkError(e)) throw e;
+                    }
+                } else {
+                    const instsMock = getStorage<Installment[]>('installments', []);
+                    const idx = instsMock.findIndex(m => m.id === inst.id);
+                    if (idx > -1) {
+                        instsMock[idx] = { ...instsMock[idx], pago: true, data_pagamento: today.toISOString() };
+                        setStorage('installments', instsMock);
+                    }
+                    const cash = getStorage<CashEntry[]>('cash', []);
+                    cash.push({
+                        id: uuidv4(),
+                        data: today.toISOString(),
+                        tipo: 'ENTRADA',
+                        valor: paidVal,
+                        descricao: `Ajuste Saldo Devedor - Baixa Parcela ${inst.numero_parcela}`,
+                        vendedor_id: vendedorId,
+                        venda_id: inst.venda_id
+                    });
+                    setStorage('cash', cash);
+                }
+            } else {
+                // Partially clear installment value
+                const newInstVal = Number((inst.valor - debtToClear).toFixed(2));
+                debtToClear = 0;
+
+                if (isSupabaseConfigured) {
+                    try {
+                        await supabase.from('installments').update({ valor: newInstVal }).eq('id', inst.id);
+                    } catch (e) {
+                        if (!isNetworkError(e)) throw e;
+                    }
+                } else {
+                    const instsMock = getStorage<Installment[]>('installments', []);
+                    const idx = instsMock.findIndex(m => m.id === inst.id);
+                    if (idx > -1) {
+                        instsMock[idx].valor = newInstVal;
+                        setStorage('installments', instsMock);
+                    }
+                }
+            }
+        }
+    } else {
+        // --- INCREASE DEBT (Dilute over open installments and update dates) ---
+        const extraDebt = diff;
+
+        if (openInstallments.length > 0) {
+            const extraPerInst = Number((extraDebt / openInstallments.length).toFixed(2));
+            // Adjust last installment for rounding difference
+            const roundingDiff = Number((extraDebt - (extraPerInst * openInstallments.length)).toFixed(2));
+
+            for (let i = 0; i < openInstallments.length; i++) {
+                const inst = openInstallments[i];
+                let added = extraPerInst;
+                if (i === openInstallments.length - 1) {
+                    added += roundingDiff;
+                }
+                const newVal = Number((inst.valor + added).toFixed(2));
+
+                // Calculate updated due date: space out 30 days starting from today (or add 1 month per index)
+                let newDueDate = inst.data_vencimento;
+                if (updateDates) {
+                    const nextDate = addMonths(today, i + 1);
+                    newDueDate = nextDate.toISOString();
+                }
+
+                if (isSupabaseConfigured) {
+                    try {
+                        await supabase.from('installments').update({
+                            valor: newVal,
+                            data_vencimento: newDueDate
+                        }).eq('id', inst.id);
+                    } catch (e) {
+                        if (!isNetworkError(e)) throw e;
+                    }
+                } else {
+                    const instsMock = getStorage<Installment[]>('installments', []);
+                    const idx = instsMock.findIndex(m => m.id === inst.id);
+                    if (idx > -1) {
+                        instsMock[idx].valor = newVal;
+                        instsMock[idx].data_vencimento = newDueDate;
+                        setStorage('installments', instsMock);
+                    }
+                }
+            }
+        } else {
+            // No open installments exist for this client. Create a new adjustment sale
+            const newSaleData = {
+                cliente_id: clientId,
+                vendedor_id: vendedorId,
+                valor_total: extraDebt,
+                qtd_parcelas: 1,
+                data_venda: today.toISOString(),
+                descricao: 'Ajuste de Saldo Devedor'
+            };
+            const newInstsData = [{
+                numero_parcela: 1,
+                valor: extraDebt,
+                data_vencimento: addMonths(today, 1).toISOString(),
+                pago: false
+            }];
+            await createSale(newSaleData, newInstsData);
+        }
+    }
+
+    // --- RECALCULATE SALE STATUS & TOTALS FOR ALL ACTIVE SALES ---
+    for (const sale of activeSales) {
+        let saleInsts: Installment[] = [];
+        if (isSupabaseConfigured) {
+            try {
+                const { data } = await supabase.from('installments').select('*').eq('venda_id', sale.id);
+                saleInsts = data || [];
+            } catch (e) {
+                if (!isNetworkError(e)) throw e;
+            }
+        } else {
+            saleInsts = getStorage<Installment[]>('installments', []).filter(i => i.venda_id === sale.id);
+        }
+
+        if (saleInsts.length > 0) {
+            const allPaid = saleInsts.every(i => i.pago);
+            const somePaid = saleInsts.some(i => i.pago);
+            const newTotal = saleInsts.reduce((sum, i) => sum + i.valor, 0);
+            let status: SaleStatus = 'ABERTA';
+            if (allPaid) status = 'QUITADA';
+            else if (somePaid) status = 'PARCIAL';
+
+            if (isSupabaseConfigured) {
+                try {
+                    await supabase.from('sales').update({ status, valor_total: newTotal }).eq('id', sale.id);
+                } catch (e) {
+                    if (!isNetworkError(e)) throw e;
+                }
+            } else {
+                const salesMock = getStorage<Sale[]>('sales', []);
+                const sIdx = salesMock.findIndex(s => s.id === sale.id);
+                if (sIdx > -1) {
+                    salesMock[sIdx].status = status;
+                    salesMock[sIdx].valor_total = newTotal;
+                    setStorage('sales', salesMock);
+                }
+            }
+        }
+    }
+};
+
 // 2. Export Object (Safe Construction)
 export const dataService = {
+  adjustClientDebt,
   getSellers,
   getUserById,
   getSellersPerformance,

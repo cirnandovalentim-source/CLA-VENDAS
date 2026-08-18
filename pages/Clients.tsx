@@ -54,6 +54,13 @@ const Clients: React.FC = () => {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   
+  // Adjust Debt State
+  const [isAdjustModalOpen, setIsAdjustModalOpen] = useState(false);
+  const [adjustClient, setAdjustClient] = useState<Client | null>(null);
+  const [adjustDebtVal, setAdjustDebtVal] = useState('');
+  const [currentDebtVal, setCurrentDebtVal] = useState(0);
+  const [updateDatesCheck, setUpdateDatesCheck] = useState(true);
+  
   // Form State
   const [clientForm, setClientForm] = useState<Partial<Client>>({
     nome: '', telefone: '', endereco: '', bairro: '', cidade: '', foto_url: '', is_mumbuca: false
@@ -102,6 +109,49 @@ const Clients: React.FC = () => {
     e.stopPropagation(); // Stop card click
     setDeletingId(id);
     setIsDeleteModalOpen(true);
+  };
+
+  const handleOpenAdjust = async (client: Client, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setAdjustClient(client);
+    setLoading(true);
+    try {
+      const sales = await dataService.getSalesByClient(client.id);
+      const activeSales = sales.filter(s => s.status !== 'DEVOLVIDO');
+      let total = 0;
+      for (const sale of activeSales) {
+        const insts = await dataService.getInstallmentsBySale(sale.id);
+        total += insts.filter(i => !i.pago).reduce((acc, curr) => acc + curr.valor, 0);
+      }
+      setCurrentDebtVal(total);
+      setAdjustDebtVal(total.toFixed(2));
+      setIsAdjustModalOpen(true);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveAdjust = async () => {
+    if (!adjustClient || !session) return;
+    const val = parseFloat(adjustDebtVal);
+    if (isNaN(val) || val < 0) {
+      alert("Por favor, informe um valor válido.");
+      return;
+    }
+    setLoading(true);
+    try {
+      await dataService.adjustClientDebt(adjustClient.id, val, session.id, updateDatesCheck);
+      await loadClients();
+      setIsAdjustModalOpen(false);
+      alert("Saldo devedor atualizado com sucesso!");
+    } catch (err) {
+      console.error(err);
+      alert("Erro ao atualizar saldo.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const compressImage = (file: File): Promise<{ base64: string, blob: Blob }> => {
@@ -444,8 +494,17 @@ const Clients: React.FC = () => {
               <button 
                 onClick={(e) => { e.stopPropagation(); window.open(`https://wa.me/55${client.telefone.replace(/\D/g, '')}`, '_blank'); }}
                 className="p-2 bg-green-500/10 text-green-600 dark:text-green-500 rounded-lg hover:bg-green-500/20 z-10"
+                title="WhatsApp"
               >
                 {ICONS.Phone}
+              </button>
+              
+              <button 
+                onClick={(e) => handleOpenAdjust(client, e)}
+                className="p-2 bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded-lg hover:bg-amber-500/20 z-10"
+                title="Ajustar Saldo Devedor"
+              >
+                {ICONS.Edit}
               </button>
               
               {/* RESTRICTED ACTIONS */}
@@ -601,6 +660,51 @@ const Clients: React.FC = () => {
                  <Button variant="danger" onClick={handleDeleteClient} isLoading={loading}>Excluir</Button>
              </div>
          </div>
+      </Modal>
+
+      <Modal isOpen={isAdjustModalOpen} onClose={() => setIsAdjustModalOpen(false)} title={`Ajustar Saldo - ${adjustClient?.nome || ''}`}>
+        <div className="space-y-4">
+          <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-xl border border-blue-100 dark:border-blue-800 text-xs text-blue-700 dark:text-blue-300">
+            <p className="font-bold mb-1">Ajuste Rápido de Dívida:</p>
+            <ul className="list-disc list-inside space-y-1">
+              <li><strong>Se menor:</strong> Dará baixa nas parcelas mais antigas.</li>
+              <li><strong>Se maior:</strong> Diluirá o acréscimo nas parcelas em aberto e atualizará as datas.</li>
+            </ul>
+          </div>
+
+          <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-[#252525] rounded-xl text-sm">
+            <span className="text-gray-500 dark:text-gray-400">Saldo Atual em Aberto:</span>
+            <span className="font-bold text-gray-900 dark:text-white">R$ {currentDebtVal.toFixed(2)}</span>
+          </div>
+
+          <Input 
+            label="Novo Saldo Devedor em Aberto (R$) *" 
+            type="number" 
+            step="0.01" 
+            value={adjustDebtVal} 
+            onChange={(e) => setAdjustDebtVal(e.target.value)} 
+            placeholder="0.00" 
+            className="text-lg font-bold text-brand-primary"
+          />
+
+          <div 
+            onClick={() => setUpdateDatesCheck(!updateDatesCheck)}
+            className="flex items-center gap-2 cursor-pointer pt-1"
+          >
+            <input 
+              type="checkbox" 
+              checked={updateDatesCheck} 
+              onChange={() => {}} 
+              className="w-4 h-4 text-brand-primary rounded focus:ring-0 cursor-pointer"
+            />
+            <span className="text-xs text-gray-600 dark:text-gray-300">Atualizar datas de vencimento?</span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 pt-2">
+            <Button variant="secondary" onClick={() => setIsAdjustModalOpen(false)}>Cancelar</Button>
+            <Button onClick={handleSaveAdjust} isLoading={loading}>Salvar Saldo</Button>
+          </div>
+        </div>
       </Modal>
     </div>
   );

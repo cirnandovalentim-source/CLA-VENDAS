@@ -45,6 +45,11 @@ const ClientDetails: React.FC = () => {
   const [processingImage, setProcessingImage] = useState(false);
   const [isClientFichaOpen, setIsClientFichaOpen] = useState(false);
 
+  // Adjust Debt State
+  const [isAdjustDebtOpen, setIsAdjustDebtOpen] = useState(false);
+  const [newDebtValue, setNewDebtValue] = useState('');
+  const [updateDatesCheck, setUpdateDatesCheck] = useState(true);
+
   // File Upload
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
@@ -500,6 +505,27 @@ const ClientDetails: React.FC = () => {
     }
   };
 
+  const handleSaveAdjustDebt = async () => {
+    if (!client || !session) return;
+    const val = parseFloat(newDebtValue);
+    if (isNaN(val) || val < 0) {
+      alert("Por favor, digite um valor válido para o saldo devedor.");
+      return;
+    }
+    setLoading(true);
+    try {
+      await dataService.adjustClientDebt(client.id, val, session.id, updateDatesCheck);
+      await loadData();
+      setIsAdjustDebtOpen(false);
+      alert("Saldo devedor e parcelas atualizados com sucesso!");
+    } catch (e: any) {
+      console.error(e);
+      alert("Erro ao atualizar saldo devedor.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleOpenPay = (inst: Installment) => {
       setPayInstallment(inst);
       setPaymentAmount(inst.valor.toFixed(2));
@@ -598,13 +624,26 @@ const ClientDetails: React.FC = () => {
               <p className="text-gray-500 dark:text-gray-400 text-xs uppercase font-bold">Total Comprado</p>
               <p className="text-gray-900 dark:text-white font-bold text-lg">R$ {totalBought.toFixed(2)}</p>
            </Card>
-           <Card className="bg-white dark:bg-[#1E1E1E] border border-gray-200 dark:border-[#333] shadow-sm">
-              <p className="text-gray-500 dark:text-gray-400 text-xs uppercase font-bold">Em Aberto</p>
-              <p className="text-brand-primary font-bold text-lg">R$ {totalDebt.toFixed(2)}</p>
+           <Card 
+              onClick={() => {
+                  setNewDebtValue(totalDebt.toFixed(2));
+                  setIsAdjustDebtOpen(true);
+              }}
+              className="bg-white dark:bg-[#1E1E1E] border border-gray-200 dark:border-[#333] shadow-sm cursor-pointer hover:border-brand-primary/50 transition-colors relative group"
+           >
+              <div className="flex justify-between items-start">
+                  <div>
+                      <p className="text-gray-500 dark:text-gray-400 text-xs uppercase font-bold">Em Aberto</p>
+                      <p className="text-brand-primary font-bold text-lg">R$ {totalDebt.toFixed(2)}</p>
+                  </div>
+                  <span className="text-[11px] text-brand-primary bg-brand-primary/10 px-2 py-0.5 rounded font-bold flex items-center gap-1 mt-0.5 hover:bg-brand-primary/20">
+                      {ICONS.Edit} Ajustar
+                  </span>
+              </div>
            </Card>
         </div>
 
-        <div className="flex gap-2">
+        <div className="grid grid-cols-3 gap-2">
            <button 
                onClick={() => {
                    const pending = allInstallments.filter(i => !i.pago).sort((a, b) => new Date(a.data_vencimento).getTime() - new Date(b.data_vencimento).getTime());
@@ -614,15 +653,24 @@ const ClientDetails: React.FC = () => {
                        alert("Não há parcelas pendentes para este cliente.");
                    }
                }}
-               className="flex-1 bg-brand-primary text-white py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 shadow-sm hover:bg-brand-primary/90 transition-colors"
+               className="bg-brand-primary text-white py-3 px-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm hover:bg-brand-primary/90 transition-colors"
            >
-               {ICONS.Payments} Receber Pagamento
+               {ICONS.Payments} Receber
+           </button>
+           <button 
+               onClick={() => {
+                   setNewDebtValue(totalDebt.toFixed(2));
+                   setIsAdjustDebtOpen(true);
+               }}
+               className="bg-amber-500/10 text-amber-600 dark:text-amber-400 py-3 px-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 border border-amber-500/20 hover:bg-amber-500/20 transition-colors"
+           >
+               {ICONS.Edit} Ajustar Saldo
            </button>
            <button 
                onClick={() => setIsClientFichaOpen(true)}
-               className="flex-1 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 border border-indigo-100 dark:border-indigo-800/30 hover:bg-indigo-100 transition-colors"
+               className="bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 py-3 px-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 border border-indigo-100 dark:border-indigo-800/30 hover:bg-indigo-100 transition-colors"
            >
-               {ICONS.Printer} Imprimir Ficha Completa
+               {ICONS.Printer} Imprimir Ficha
            </button>
         </div>
 
@@ -981,6 +1029,61 @@ const ClientDetails: React.FC = () => {
             <Button fullWidth onClick={handleSaveSaleEdit} isLoading={loading}>
                 Salvar Alterações
             </Button>
+        </div>
+      </Modal>
+
+      <Modal isOpen={isAdjustDebtOpen} onClose={() => setIsAdjustDebtOpen(false)} title="Ajustar Saldo Devedor">
+        <div className="space-y-4">
+          <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-xl border border-blue-100 dark:border-blue-800 text-xs text-blue-700 dark:text-blue-300">
+            <p className="font-bold mb-1">Como funciona o ajuste:</p>
+            <ul className="list-disc list-inside space-y-1">
+              <li><strong>Se o valor for menor:</strong> Dará baixa (quitará) as parcelas em aberto mais antigas e atualizará a data de pagamento.</li>
+              <li><strong>Se o valor for maior:</strong> Diluirá o valor excedente nas parcelas em aberto existentes e atualizará as datas de vencimento.</li>
+            </ul>
+          </div>
+
+          <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-[#252525] rounded-xl text-sm">
+            <span className="text-gray-500 dark:text-gray-400">Saldo Atual em Aberto:</span>
+            <span className="font-bold text-gray-900 dark:text-white">R$ {totalDebt.toFixed(2)}</span>
+          </div>
+
+          <Input 
+            label="Novo Saldo Devedor em Aberto (R$) *" 
+            type="number" 
+            step="0.01" 
+            value={newDebtValue} 
+            onChange={(e) => setNewDebtValue(e.target.value)} 
+            placeholder="0.00" 
+            className="text-lg font-bold text-brand-primary"
+          />
+
+          {parseFloat(newDebtValue) !== totalDebt && !isNaN(parseFloat(newDebtValue)) && (
+            <div className={`p-3 rounded-xl text-xs font-medium ${parseFloat(newDebtValue) < totalDebt ? 'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400' : 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400'}`}>
+              {parseFloat(newDebtValue) < totalDebt ? (
+                <span>O saldo será reduzido em <strong>R$ {(totalDebt - parseFloat(newDebtValue)).toFixed(2)}</strong>. As parcelas mais antigas receberão baixa.</span>
+              ) : (
+                <span>O saldo será aumentado em <strong>R$ {(parseFloat(newDebtValue) - totalDebt).toFixed(2)}</strong>. O valor será diluído nas parcelas em aberto.</span>
+              )}
+            </div>
+          )}
+
+          <div 
+            onClick={() => setUpdateDatesCheck(!updateDatesCheck)}
+            className="flex items-center gap-2 cursor-pointer pt-1"
+          >
+            <input 
+              type="checkbox" 
+              checked={updateDatesCheck} 
+              onChange={() => {}} 
+              className="w-4 h-4 text-brand-primary rounded focus:ring-0 cursor-pointer"
+            />
+            <span className="text-xs text-gray-600 dark:text-gray-300">Atualizar datas de vencimento das parcelas para os próximos meses?</span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 pt-2">
+            <Button variant="secondary" onClick={() => setIsAdjustDebtOpen(false)}>Cancelar</Button>
+            <Button onClick={handleSaveAdjustDebt} isLoading={loading}>Atualizar Saldo</Button>
+          </div>
         </div>
       </Modal>
 
