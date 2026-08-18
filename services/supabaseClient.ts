@@ -81,5 +81,13 @@ export const supabase = createClient(safeUrl, safeKey, {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: false
+  },
+  global: {
+    fetch: (url, options) => {
+      return fetch(url, options).catch(err => {
+        console.warn('[Supabase Client] Erro de rede na requisição (Failed to fetch):', err?.message || err);
+        throw err;
+      });
+    }
   }
 });

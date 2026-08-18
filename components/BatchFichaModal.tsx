@@ -19,6 +19,8 @@ export const BatchFichaModal: React.FC<BatchFichaModalProps> = ({ isOpen, onClos
   const [allInstallments, setAllInstallments] = useState<Record<string, Installment[]>>({});
   
   const [selectedSales, setSelectedSales] = useState<string[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showDropdown, setShowDropdown] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -38,6 +40,8 @@ export const BatchFichaModal: React.FC<BatchFichaModalProps> = ({ isOpen, onClos
       load();
     } else {
         setSelectedSales([]); // reset on close
+        setSearchQuery('');
+        setShowDropdown(false);
     }
   }, [isOpen]);
 
@@ -48,18 +52,27 @@ export const BatchFichaModal: React.FC<BatchFichaModalProps> = ({ isOpen, onClos
     }
   };
 
-  const handleSelectSale = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const saleId = e.target.value;
+  const addSale = (saleId: string) => {
     if (saleId && !selectedSales.includes(saleId) && selectedSales.length < 4) {
-      setSelectedSales([...selectedSales, saleId]);
+      setSelectedSales(prev => [...prev, saleId]);
       loadInstallmentsForSale(saleId);
+      setSearchQuery('');
+      setShowDropdown(false);
     }
-    e.target.value = '';
   };
 
   const removeSale = (saleId: string) => {
     setSelectedSales(selectedSales.filter(id => id !== saleId));
   };
+
+  const filteredSales = allSales.filter(s => {
+    if (selectedSales.includes(s.id)) return false;
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase();
+    const nameMatch = s.cliente_nome ? s.cliente_nome.toLowerCase().includes(q) : false;
+    const descMatch = s.descricao ? s.descricao.toLowerCase().includes(q) : false;
+    return nameMatch || descMatch;
+  });
 
   const handlePrint = async () => {
     if (selectedSales.length === 0) return;
@@ -71,11 +84,12 @@ export const BatchFichaModal: React.FC<BatchFichaModalProps> = ({ isOpen, onClos
             format: 'a4'
         });
 
+        // 85mm x 125mm centered grid on A4 (210mm x 297mm)
         const positions = [
-            { x: 7.5, y: 9 },
-            { x: 107.5, y: 9 },
-            { x: 7.5, y: 149 },
-            { x: 107.5, y: 149 }
+            { x: 12.5, y: 15 },
+            { x: 112.5, y: 15 },
+            { x: 12.5, y: 152 },
+            { x: 112.5, y: 152 }
         ];
 
         for (let i = 0; i < selectedSales.length; i++) {
@@ -89,11 +103,16 @@ export const BatchFichaModal: React.FC<BatchFichaModalProps> = ({ isOpen, onClos
                     backgroundColor: "#ffffff",
                     scrollX: 0,
                     scrollY: 0,
-                    windowWidth: 1000,
-                    windowHeight: 1000
+                    onclone: (clonedDoc) => {
+                        const clonedEl = clonedDoc.getElementById(`batch-ficha-print-${sid}`);
+                        if (clonedEl) {
+                            clonedEl.style.position = 'static';
+                            clonedEl.style.margin = '0';
+                        }
+                    }
                 });
                 const imgData = canvas.toDataURL('image/png');
-                pdf.addImage(imgData, 'PNG', positions[i].x, positions[i].y, 95, 135);
+                pdf.addImage(imgData, 'PNG', positions[i].x, positions[i].y, 85, 125);
             }
         }
         
@@ -112,7 +131,7 @@ export const BatchFichaModal: React.FC<BatchFichaModalProps> = ({ isOpen, onClos
     <Modal isOpen={isOpen} onClose={onClose} title="Imprimir Fichas em Lote (4 por página)">
       <div className="flex flex-col items-center w-full">
         {/* Offscreen print elements container */}
-        <div style={{ position: 'fixed', left: '-9999px', top: '0', pointerEvents: 'none', zIndex: -9999 }}>
+        <div style={{ position: 'absolute', left: '-9999px', top: '0', pointerEvents: 'none', width: '700px' }}>
             {selectedSales.map(sid => {
                 const s = allSales.find(x => x.id === sid);
                 const c = s ? allClients[s.cliente_id] : null;
@@ -133,12 +152,73 @@ export const BatchFichaModal: React.FC<BatchFichaModalProps> = ({ isOpen, onClos
                         Selecione até 4 clientes/vendas para imprimir em uma folha A4. ({selectedSales.length}/4)
                     </p>
                     {selectedSales.length < 4 && (
-                        <select className="w-full text-sm p-3 rounded border border-gray-300 dark:border-[#444] bg-white dark:bg-[#1E1E1E]" onChange={handleSelectSale} defaultValue="">
-                            <option value="" disabled>Selecione uma venda para adicionar...</option>
-                            {allSales.filter(s => !selectedSales.includes(s.id)).map(s => (
-                                <option key={s.id} value={s.id}>{s.cliente_nome} - {s.descricao}</option>
-                            ))}
-                        </select>
+                      <div className="relative">
+                        <div className="relative flex items-center">
+                          <input
+                            type="text"
+                            className="w-full text-sm p-3 pr-10 rounded-lg border border-gray-300 dark:border-[#444] bg-white dark:bg-[#1E1E1E] text-gray-900 dark:text-white focus:ring-2 focus:ring-[#EA580C] focus:outline-none shadow-sm"
+                            placeholder="Digite o nome do cliente ou venda para buscar..."
+                            value={searchQuery}
+                            onChange={(e) => {
+                              setSearchQuery(e.target.value);
+                              setShowDropdown(true);
+                            }}
+                            onFocus={() => setShowDropdown(true)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && filteredSales.length > 0) {
+                                e.preventDefault();
+                                addSale(filteredSales[0].id);
+                              }
+                            }}
+                          />
+                          {searchQuery && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSearchQuery('');
+                                setShowDropdown(false);
+                              }}
+                              className="absolute right-3 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-xs font-bold bg-gray-200 dark:bg-[#333] rounded-full w-5 h-5 flex items-center justify-center"
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Search Suggestions Dropdown */}
+                        {showDropdown && (
+                          <>
+                            {/* Backdrop to close dropdown on click outside */}
+                            <div 
+                              className="fixed inset-0 z-40" 
+                              onClick={() => setShowDropdown(false)} 
+                            />
+                            <div className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-[#252525] border border-gray-200 dark:border-[#444] rounded-lg shadow-xl max-h-56 overflow-y-auto z-50 divide-y divide-gray-100 dark:divide-[#333]">
+                              {filteredSales.length > 0 ? (
+                                filteredSales.map((s) => (
+                                  <button
+                                    key={s.id}
+                                    type="button"
+                                    onClick={() => addSale(s.id)}
+                                    className="w-full text-left px-3.5 py-2.5 hover:bg-orange-50 dark:hover:bg-[#333] flex flex-col transition-colors cursor-pointer"
+                                  >
+                                    <span className="font-bold text-gray-900 dark:text-white text-sm">
+                                      {s.cliente_nome}
+                                    </span>
+                                    <span className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                                      {s.descricao} • R$ {s.valor_total.toFixed(2)}
+                                    </span>
+                                  </button>
+                                ))
+                              ) : (
+                                <div className="p-3 text-xs text-center text-gray-500">
+                                  {searchQuery ? 'Nenhum cliente ou venda encontrado com este nome.' : 'Todas as vendas já foram adicionadas.'}
+                                </div>
+                              )}
+                            </div>
+                          </>
+                        )}
+                      </div>
                     )}
                     
                     {selectedSales.length > 0 && (

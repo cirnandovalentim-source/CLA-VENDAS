@@ -39,15 +39,19 @@ export const ClientFichaModal: React.FC<ClientFichaModalProps> = ({
                 backgroundColor: "#ffffff",
                 scrollX: 0,
                 scrollY: 0,
-                windowWidth: 1000,
-                windowHeight: 1000
+                onclone: (clonedDoc) => {
+                    const clonedEl = clonedDoc.getElementById('client-ficha-content-print');
+                    if (clonedEl) {
+                        clonedEl.style.position = 'static';
+                        clonedEl.style.margin = '0';
+                    }
+                }
             });
             const imgData = canvas.toDataURL('image/png');
             
-            // Centralize the 14x19cm ficha on A4
-            // A4 width: 210mm, Ficha width: 140mm -> margin: (210-140)/2 = 35mm
-            // A4 height: 297mm, Ficha height: 190mm -> margin: (297-190)/2 = 53.5mm
-            pdf.addImage(imgData, 'PNG', 35, 20, 140, 190);
+            // Centralize the 13x18cm ficha on A4
+            // A4 width: 210mm, Ficha width: 130mm -> margin: (210-130)/2 = 40mm
+            pdf.addImage(imgData, 'PNG', 40, 20, 130, 180);
         }
 
         pdf.save(`Ficha_${client.nome.replace(/\s+/g, '_')}_Completa.pdf`);
@@ -63,7 +67,7 @@ export const ClientFichaModal: React.FC<ClientFichaModalProps> = ({
     <Modal isOpen={isOpen} onClose={onClose} title="Imprimir Ficha Completa">
       <div className="flex flex-col items-center w-full">
         {/* Dedicated Offscreen Element for Pristine PDF Capture */}
-        <div style={{ position: 'fixed', left: '-9999px', top: '0', pointerEvents: 'none', zIndex: -9999 }}>
+        <div style={{ position: 'absolute', left: '-9999px', top: '0', pointerEvents: 'none', width: '491px', height: '680px', overflow: 'hidden' }}>
           <ClientFichaContent id="client-ficha-content-print" client={client} sales={sales} installments={installments} />
         </div>
         <div className="w-full bg-blue-50 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300 p-2.5 rounded-lg border border-blue-200 dark:border-blue-800/40 mb-4 text-xs flex items-center gap-2">

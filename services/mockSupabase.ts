@@ -66,10 +66,29 @@ const getUserFilter = (): string | null => {
   return user.perfil === 'admin' ? null : user.id;
 };
 
+// HELPER: DETECT NETWORK / FETCH ERRORS
+export const isNetworkError = (error: any): boolean => {
+    if (!error) return false;
+    const str = typeof error === 'string'
+      ? error
+      : String(error.message || error.details || error.hint || error.error_description || JSON.stringify(error));
+    return str.includes('Failed to fetch') ||
+           str.includes('TypeError') ||
+           str.includes('NetworkError') ||
+           str.includes('network error') ||
+           error.name === 'TypeError';
+};
+
 // HELPER: ERROR HANDLER FOR SUPABASE
 const handleSupabaseError = (error: any) => {
-    console.error("Supabase Operation Error:", error);
     if (!error) return;
+
+    if (isNetworkError(error)) {
+        console.warn("[Supabase] Conexão indisponível (Failed to fetch). Operando com resiliência local.");
+        throw new Error("ERR_NETWORK: Falha de conexão com o banco de dados Supabase.");
+    }
+    
+    console.error("Supabase Operation Error:", error);
     
     // RLS / Permission Denied Error
     if (error.code === '42501' || error.message?.includes('row-level security') || error.message?.includes('permission denied')) {
@@ -210,11 +229,19 @@ const getSellers = async (): Promise<User[]> => {
     const filterId = getUserFilter();
     
     if (isSupabaseConfigured) {
-        let query = supabase.from('users').select('*').order('nome');
-        if (filterId) query = query.eq('id', filterId); // STRICT SECURITY
-        const { data, error } = await query;
-        if (error) handleSupabaseError(error);
-        return data || [];
+        try {
+            let query = supabase.from('users').select('*').order('nome');
+            if (filterId) query = query.eq('id', filterId); // STRICT SECURITY
+            const { data, error } = await query;
+            if (error) handleSupabaseError(error);
+            return data || [];
+        } catch (e) {
+            if (isNetworkError(e)) {
+                console.warn("[getSellers] Erro de rede. Usando dados locais.");
+            } else {
+                throw e;
+            }
+        }
     }
     await delay(300);
     const users = getStorage<User[]>('users', MOCK_USERS);
@@ -225,9 +252,17 @@ const getSellers = async (): Promise<User[]> => {
 // GET SPECIFIC USER
 const getUserById = async (id: string): Promise<User | null> => {
     if (isSupabaseConfigured) {
-        const { data, error } = await supabase.from('users').select('*').eq('id', id).single();
-        if (error) handleSupabaseError(error);
-        return data || null;
+        try {
+            const { data, error } = await supabase.from('users').select('*').eq('id', id).single();
+            if (error) handleSupabaseError(error);
+            return data || null;
+        } catch (e) {
+            if (isNetworkError(e)) {
+                console.warn("[getUserById] Erro de rede. Usando dados locais.");
+            } else {
+                throw e;
+            }
+        }
     }
     await delay(200);
     const users = getStorage<User[]>('users', MOCK_USERS);
@@ -240,30 +275,38 @@ const getSellersPerformance = async (startDate: Date, endDate: Date): Promise<{ 
     const endIso = endOfDay(endDate).toISOString();
 
     if (isSupabaseConfigured) {
-        const { data: sales, error } = await supabase
-            .from('sales')
-            .select('vendedor_id, valor_total')
-            .gte('data_venda', startIso)
-            .lte('data_venda', endIso);
+        try {
+            const { data: sales, error } = await supabase
+                .from('sales')
+                .select('vendedor_id, valor_total')
+                .gte('data_venda', startIso)
+                .lte('data_venda', endIso);
 
-        if (error) {
-            handleSupabaseError(error);
-            return [];
+            if (error) {
+                handleSupabaseError(error);
+                return [];
+            }
+
+            // Aggregate by Seller
+            const map: Record<string, { total: number, count: number }> = {};
+            sales?.forEach((s: any) => {
+                if (!map[s.vendedor_id]) map[s.vendedor_id] = { total: 0, count: 0 };
+                map[s.vendedor_id].total += s.valor_total;
+                map[s.vendedor_id].count += 1;
+            });
+
+            return Object.keys(map).map(id => ({
+                sellerId: id,
+                totalSales: map[id].total,
+                salesCount: map[id].count
+            }));
+        } catch (e) {
+            if (isNetworkError(e)) {
+                console.warn("[getSellersPerformance] Erro de rede. Usando dados locais.");
+            } else {
+                throw e;
+            }
         }
-
-        // Aggregate by Seller
-        const map: Record<string, { total: number, count: number }> = {};
-        sales?.forEach((s: any) => {
-            if (!map[s.vendedor_id]) map[s.vendedor_id] = { total: 0, count: 0 };
-            map[s.vendedor_id].total += s.valor_total;
-            map[s.vendedor_id].count += 1;
-        });
-
-        return Object.keys(map).map(id => ({
-            sellerId: id,
-            totalSales: map[id].total,
-            salesCount: map[id].count
-        }));
     }
 
     // Mock Implementation
@@ -330,15 +373,23 @@ const deleteSeller = async (id: string): Promise<void> => {
 const getClients = async (): Promise<Client[]> => {
     const filterId = getUserFilter();
     if (isSupabaseConfigured) {
-        let query = supabase.from('clients').select('*').order('nome');
-        if (filterId) {
-             query = query.eq('vendedor_id', filterId); // STRICT SECURITY
+        try {
+            let query = supabase.from('clients').select('*').order('nome');
+            if (filterId) {
+                 query = query.eq('vendedor_id', filterId); // STRICT SECURITY
+            }
+            const { data, error } = await query;
+            if (error) {
+                 if (error.code !== '42P01') handleSupabaseError(error);
+            }
+            return data || [];
+        } catch (e) {
+            if (isNetworkError(e)) {
+                console.warn("[getClients] Erro de rede. Usando dados locais.");
+            } else {
+                throw e;
+            }
         }
-        const { data, error } = await query;
-        if (error) {
-             if (error.code !== '42P01') handleSupabaseError(error);
-        }
-        return data || [];
     }
     await delay(300);
     let clients = getStorage<Client[]>('clients', INITIAL_CLIENTS);
@@ -348,9 +399,17 @@ const getClients = async (): Promise<Client[]> => {
 
 const getClientById = async (id: string): Promise<Client | undefined> => {
     if (isSupabaseConfigured) {
-        const { data, error } = await supabase.from('clients').select('*').eq('id', id).single();
-        if (error) handleSupabaseError(error);
-        return data || undefined;
+        try {
+            const { data, error } = await supabase.from('clients').select('*').eq('id', id).single();
+            if (error) handleSupabaseError(error);
+            return data || undefined;
+        } catch (e) {
+            if (isNetworkError(e)) {
+                console.warn("[getClientById] Erro de rede. Usando dados locais.");
+            } else {
+                throw e;
+            }
+        }
     }
     await delay(200);
     return getStorage<Client[]>('clients', INITIAL_CLIENTS).find(c => c.id === id);
@@ -400,7 +459,6 @@ const createClient = async (client: Omit<Client, 'id'>): Promise<Client> => {
             const { data, error } = await supabase.from('clients').insert([{ ...client, vendedor_id: vId }]).select().single();
             if (error) {
                 if (error.message.includes("foreign key") || error.message.includes("uuid")) {
-                    // Fallback for weird edge cases, but ideally shouldn't happen with correct DB setup
                     const { data: retryData, error: retryError } = await supabase.from('clients').insert([{ 
                         ...client, 
                         vendedor_id: null 
@@ -412,7 +470,11 @@ const createClient = async (client: Omit<Client, 'id'>): Promise<Client> => {
             }
             return data;
         } catch (e: any) {
-             throw e;
+            if (isNetworkError(e)) {
+                console.warn("[createClient] Erro de rede ao salvar no Supabase. Salvando localmente.");
+            } else {
+                throw e;
+            }
         }
     }
     
@@ -425,9 +487,17 @@ const createClient = async (client: Omit<Client, 'id'>): Promise<Client> => {
 
 const updateClient = async (id: string, updates: Partial<Client>): Promise<void> => {
     if (isSupabaseConfigured) {
-        const { error } = await supabase.from('clients').update(updates).eq('id', id);
-        if (error) handleSupabaseError(error);
-        return;
+        try {
+            const { error } = await supabase.from('clients').update(updates).eq('id', id);
+            if (error) handleSupabaseError(error);
+            return;
+        } catch (e) {
+            if (isNetworkError(e)) {
+                console.warn("[updateClient] Erro de rede. Atualizando localmente.");
+            } else {
+                throw e;
+            }
+        }
     }
     await delay(300);
     const clients = getStorage<Client[]>('clients', INITIAL_CLIENTS);
@@ -440,9 +510,17 @@ const updateClient = async (id: string, updates: Partial<Client>): Promise<void>
 
 const deleteClient = async (id: string): Promise<void> => {
     if (isSupabaseConfigured) {
-        const { error } = await supabase.from('clients').delete().eq('id', id);
-        if (error) handleSupabaseError(error);
-        return;
+        try {
+            const { error } = await supabase.from('clients').delete().eq('id', id);
+            if (error) handleSupabaseError(error);
+            return;
+        } catch (e) {
+            if (isNetworkError(e)) {
+                console.warn("[deleteClient] Erro de rede. Excluindo localmente.");
+            } else {
+                throw e;
+            }
+        }
     }
     await delay(300);
     const clients = getStorage<Client[]>('clients', INITIAL_CLIENTS);
@@ -452,9 +530,17 @@ const deleteClient = async (id: string): Promise<void> => {
 // PRODUCTS (Shared)
 const getProducts = async (): Promise<Product[]> => {
     if (isSupabaseConfigured) {
-        const { data, error } = await supabase.from('products').select('*').eq('ativo', true).order('nome');
-        if (error && error.code !== '42P01') handleSupabaseError(error);
-        return data || [];
+        try {
+            const { data, error } = await supabase.from('products').select('*').eq('ativo', true).order('nome');
+            if (error && error.code !== '42P01') handleSupabaseError(error);
+            return data || [];
+        } catch (e) {
+            if (isNetworkError(e)) {
+                console.warn("[getProducts] Erro de rede. Usando dados locais.");
+            } else {
+                throw e;
+            }
+        }
     }
     await delay(300);
     return getStorage<Product[]>('products', INITIAL_PRODUCTS);
@@ -502,11 +588,19 @@ const getSales = async (): Promise<Sale[]> => {
     const filterId = getUserFilter();
 
     if (isSupabaseConfigured) {
-        let query = supabase.from('sales').select('*, clients(nome)').order('data_venda', { ascending: false });
-        if (filterId) { query = query.eq('vendedor_id', filterId); } // STRICT SECURITY
-        const { data, error } = await query;
-        if (error) handleSupabaseError(error);
-        return (data || []).map((s: any) => ({ ...s, cliente_nome: s.clients?.nome || 'Desconhecido' }));
+        try {
+            let query = supabase.from('sales').select('*, clients(nome)').order('data_venda', { ascending: false });
+            if (filterId) { query = query.eq('vendedor_id', filterId); } // STRICT SECURITY
+            const { data, error } = await query;
+            if (error) handleSupabaseError(error);
+            return (data || []).map((s: any) => ({ ...s, cliente_nome: s.clients?.nome || 'Desconhecido' }));
+        } catch (e) {
+            if (isNetworkError(e)) {
+                console.warn("[getSales] Erro de rede. Usando dados locais.");
+            } else {
+                throw e;
+            }
+        }
     }
     await delay(300);
     let sales = getStorage<Sale[]>('sales', []);
@@ -521,11 +615,19 @@ const getSales = async (): Promise<Sale[]> => {
 const getSalesByClient = async (clientId: string): Promise<Sale[]> => {
     const filterId = getUserFilter();
     if (isSupabaseConfigured) {
-        let query = supabase.from('sales').select('*').eq('cliente_id', clientId).order('data_venda', { ascending: false });
-        if (filterId) { query = query.eq('vendedor_id', filterId); } // STRICT SECURITY
-        const { data, error } = await query;
-        if (error) handleSupabaseError(error);
-        return data || [];
+        try {
+            let query = supabase.from('sales').select('*').eq('cliente_id', clientId).order('data_venda', { ascending: false });
+            if (filterId) { query = query.eq('vendedor_id', filterId); } // STRICT SECURITY
+            const { data, error } = await query;
+            if (error) handleSupabaseError(error);
+            return data || [];
+        } catch (e) {
+            if (isNetworkError(e)) {
+                console.warn("[getSalesByClient] Erro de rede. Usando dados locais.");
+            } else {
+                throw e;
+            }
+        }
     }
     await delay(300);
     let sales = getStorage<Sale[]>('sales', []);
@@ -535,35 +637,42 @@ const getSalesByClient = async (clientId: string): Promise<Sale[]> => {
 
 const createSale = async (saleData: Omit<Sale, 'id' | 'status'>, installmentsData: Omit<Installment, 'id' | 'venda_id'>[]): Promise<void> => {
     if (isSupabaseConfigured) {
-        // Force Vendedor ID
-        const user = getCurrentUser();
-        const vId = user?.id;
-        if (!vId) throw new Error("Usuário não logado");
-        
-        const salePayload = { ...saleData, vendedor_id: vId, status: 'ABERTA' };
-        
-        // 1. Create Sale
-        const { data: sale, error: saleError } = await supabase.from('sales').insert([salePayload]).select().single();
-        if (saleError || !sale) {
-            handleSupabaseError(saleError);
-            return;
-        }
-        
-        // 2. Create Installments
         try {
-            const installmentsWithId = installmentsData.map(i => ({ ...i, venda_id: sale.id }));
-            const { error: instError } = await supabase.from('installments').insert(installmentsWithId);
+            // Force Vendedor ID
+            const user = getCurrentUser();
+            const vId = user?.id;
+            if (!vId) throw new Error("Usuário não logado");
             
-            if (instError) {
-                // ROLLBACK: Delete the sale if installments fail
-                console.error("Installment error, rolling back sale...", instError);
-                await supabase.from('sales').delete().eq('id', sale.id);
-                throw instError;
+            const salePayload = { ...saleData, vendedor_id: vId, status: 'ABERTA' };
+            
+            // 1. Create Sale
+            const { data: sale, error: saleError } = await supabase.from('sales').insert([salePayload]).select().single();
+            if (saleError || !sale) {
+                handleSupabaseError(saleError);
+                return;
             }
+            
+            // 2. Create Installments
+            try {
+                const installmentsWithId = installmentsData.map(i => ({ ...i, venda_id: sale.id }));
+                const { error: instError } = await supabase.from('installments').insert(installmentsWithId);
+                
+                if (instError) {
+                    console.error("Installment error, rolling back sale...", instError);
+                    await supabase.from('sales').delete().eq('id', sale.id);
+                    throw instError;
+                }
+            } catch (e: any) {
+                 throw new Error("Erro ao criar parcelas: " + e.message);
+            }
+            return;
         } catch (e: any) {
-             throw new Error("Erro ao criar parcelas: " + e.message);
+            if (isNetworkError(e)) {
+                console.warn("[createSale] Erro de rede ao comunicar com Supabase. Salvando localmente.");
+            } else {
+                throw e;
+            }
         }
-        return;
     }
     await delay(800);
     const sales = getStorage<Sale[]>('sales', []);
@@ -577,9 +686,17 @@ const createSale = async (saleData: Omit<Sale, 'id' | 'status'>, installmentsDat
 
 const updateSale = async (id: string, updates: Partial<Sale>): Promise<void> => {
     if (isSupabaseConfigured) {
-        const { error } = await supabase.from('sales').update(updates).eq('id', id);
-        if (error) handleSupabaseError(error);
-        return;
+        try {
+            const { error } = await supabase.from('sales').update(updates).eq('id', id);
+            if (error) handleSupabaseError(error);
+            return;
+        } catch (e) {
+            if (isNetworkError(e)) {
+                console.warn("[updateSale] Erro de rede. Atualizando localmente.");
+            } else {
+                throw e;
+            }
+        }
     }
     await delay(300);
     const sales = getStorage<Sale[]>('sales', []);
@@ -592,10 +709,17 @@ const updateSale = async (id: string, updates: Partial<Sale>): Promise<void> => 
 
 const deleteSale = async (saleId: string): Promise<void> => {
     if (isSupabaseConfigured) {
-        // ON DELETE CASCADE handles children, but we call delete on parent
-        const { error } = await supabase.from('sales').delete().eq('id', saleId);
-        if (error) handleSupabaseError(error);
-        return;
+        try {
+            const { error } = await supabase.from('sales').delete().eq('id', saleId);
+            if (error) handleSupabaseError(error);
+            return;
+        } catch (e) {
+            if (isNetworkError(e)) {
+                console.warn("[deleteSale] Erro de rede. Excluindo localmente.");
+            } else {
+                throw e;
+            }
+        }
     }
     await delay(400);
     const sales = getStorage<Sale[]>('sales', []);
@@ -606,10 +730,18 @@ const deleteSale = async (saleId: string): Promise<void> => {
   
 const returnSale = async (saleId: string): Promise<void> => {
       if (isSupabaseConfigured) {
-          await supabase.from('sales').update({ status: 'DEVOLVIDO' }).eq('id', saleId);
-          await supabase.from('installments').delete().eq('venda_id', saleId);
-          await supabase.from('cash_flow').delete().eq('venda_id', saleId);
-          return;
+          try {
+              await supabase.from('sales').update({ status: 'DEVOLVIDO' }).eq('id', saleId);
+              await supabase.from('installments').delete().eq('venda_id', saleId);
+              await supabase.from('cash_flow').delete().eq('venda_id', saleId);
+              return;
+          } catch (e) {
+              if (isNetworkError(e)) {
+                  console.warn("[returnSale] Erro de rede. Devolvendo localmente.");
+              } else {
+                  throw e;
+              }
+          }
       }
       await delay(500);
       let sales = getStorage<Sale[]>('sales', []);
@@ -629,9 +761,17 @@ const returnSale = async (saleId: string): Promise<void> => {
 // INSTALLMENTS
 const getInstallmentsBySale = async (saleId: string): Promise<Installment[]> => {
     if (isSupabaseConfigured) {
-        const { data, error } = await supabase.from('installments').select('*').eq('venda_id', saleId).order('numero_parcela');
-        if (error) handleSupabaseError(error);
-        return data || [];
+        try {
+            const { data, error } = await supabase.from('installments').select('*').eq('venda_id', saleId).order('numero_parcela');
+            if (error) handleSupabaseError(error);
+            return data || [];
+        } catch (e) {
+            if (isNetworkError(e)) {
+                console.warn("[getInstallmentsBySale] Erro de rede. Usando dados locais.");
+            } else {
+                throw e;
+            }
+        }
     }
     await delay(200);
     return getStorage<Installment[]>('installments', []).filter(i => i.venda_id === saleId).sort((a, b) => a.numero_parcela - b.numero_parcela);
@@ -639,9 +779,17 @@ const getInstallmentsBySale = async (saleId: string): Promise<Installment[]> => 
 
 const updateInstallment = async (id: string, updates: Partial<Pick<Installment, 'valor' | 'data_vencimento'>>): Promise<void> => {
     if (isSupabaseConfigured) {
-        const { error } = await supabase.from('installments').update(updates).eq('id', id);
-        if (error) handleSupabaseError(error);
-        return;
+        try {
+            const { error } = await supabase.from('installments').update(updates).eq('id', id);
+            if (error) handleSupabaseError(error);
+            return;
+        } catch (e) {
+            if (isNetworkError(e)) {
+                console.warn("[updateInstallment] Erro de rede. Atualizando localmente.");
+            } else {
+                throw e;
+            }
+        }
     }
     await delay(200);
     const installments = getStorage<Installment[]>('installments', []);
@@ -661,43 +809,51 @@ const getInstallmentsByDate = async (date: Date): Promise<{
     const end = endOfDay(date).toISOString();
     
     if (isSupabaseConfigured) {
-        // STRICT SECURITY: JOIN WITH SALES AND FILTER BY VENDEDOR
-        let query = supabase
-            .from('installments')
-            .select('*, sales!inner(id, vendedor_id, is_mumbuca, clients(nome))')
-            .eq('pago', false)
-            .gte('data_vencimento', start)
-            .lte('data_vencimento', end)
-            .order('data_vencimento');
-        
-        if (filterId) {
-             query = query.eq('sales.vendedor_id', filterId);
+        try {
+            // STRICT SECURITY: JOIN WITH SALES AND FILTER BY VENDEDOR
+            let query = supabase
+                .from('installments')
+                .select('*, sales!inner(id, vendedor_id, is_mumbuca, clients(nome))')
+                .eq('pago', false)
+                .gte('data_vencimento', start)
+                .lte('data_vencimento', end)
+                .order('data_vencimento');
+            
+            if (filterId) {
+                 query = query.eq('sales.vendedor_id', filterId);
+            }
+
+            const { data: daily, error: dailyError } = await query;
+            if (dailyError) handleSupabaseError(dailyError);
+
+            let overdueQuery = supabase
+                .from('installments')
+                .select('*, sales!inner(vendedor_id)', { count: 'exact', head: true })
+                .eq('pago', false)
+                .lt('data_vencimento', startOfDay(new Date()).toISOString());
+
+            if (filterId) {
+                 overdueQuery = overdueQuery.eq('sales.vendedor_id', filterId);
+            }
+
+            const { count: overdueCount } = await overdueQuery;
+
+            return {
+               daily: (daily || []).map((i: any) => ({ 
+                   ...i, 
+                   cliente_nome: i.sales?.clients?.nome || 'Desconhecido', 
+                   venda_id: i.venda_id,
+                   is_mumbuca: i.sales?.is_mumbuca
+               })),
+               overdueCount: overdueCount || 0
+            };
+        } catch (e) {
+            if (isNetworkError(e)) {
+                console.warn("[getInstallmentsByDate] Erro de rede. Usando dados locais.");
+            } else {
+                throw e;
+            }
         }
-
-        const { data: daily, error: dailyError } = await query;
-        if (dailyError) handleSupabaseError(dailyError);
-
-        let overdueQuery = supabase
-            .from('installments')
-            .select('*, sales!inner(vendedor_id)', { count: 'exact', head: true })
-            .eq('pago', false)
-            .lt('data_vencimento', startOfDay(new Date()).toISOString());
-
-        if (filterId) {
-             overdueQuery = overdueQuery.eq('sales.vendedor_id', filterId);
-        }
-
-        const { count: overdueCount } = await overdueQuery;
-
-        return {
-           daily: (daily || []).map((i: any) => ({ 
-               ...i, 
-               cliente_nome: i.sales?.clients?.nome || 'Desconhecido', 
-               venda_id: i.venda_id,
-               is_mumbuca: i.sales?.is_mumbuca
-           })),
-           overdueCount: overdueCount || 0
-        };
     }
 
     await delay(300);
@@ -732,23 +888,31 @@ const getDueInstallments = async (): Promise<(Installment & { cliente_nome: stri
     today.setHours(23, 59, 59, 999);
     
     if (isSupabaseConfigured) {
-        let query = supabase
-            .from('installments')
-            .select('*, sales!inner(id, vendedor_id, is_mumbuca, clients(nome))')
-            .eq('pago', false)
-            .lte('data_vencimento', today.toISOString())
-            .order('data_vencimento');
-        
-        if (filterId) { query = query.eq('sales.vendedor_id', filterId); } // STRICT SECURITY
+        try {
+            let query = supabase
+                .from('installments')
+                .select('*, sales!inner(id, vendedor_id, is_mumbuca, clients(nome))')
+                .eq('pago', false)
+                .lte('data_vencimento', today.toISOString())
+                .order('data_vencimento');
+            
+            if (filterId) { query = query.eq('sales.vendedor_id', filterId); } // STRICT SECURITY
 
-        const { data, error } = await query;
-        if (error) handleSupabaseError(error);
-        return (data || []).map((i: any) => ({ 
-            ...i, 
-            cliente_nome: i.sales?.clients?.nome || 'Desconhecido', 
-            venda_id: i.venda_id,
-            is_mumbuca: i.sales?.is_mumbuca
-        }));
+            const { data, error } = await query;
+            if (error) handleSupabaseError(error);
+            return (data || []).map((i: any) => ({ 
+                ...i, 
+                cliente_nome: i.sales?.clients?.nome || 'Desconhecido', 
+                venda_id: i.venda_id,
+                is_mumbuca: i.sales?.is_mumbuca
+            }));
+        } catch (e) {
+            if (isNetworkError(e)) {
+                console.warn("[getDueInstallments] Erro de rede. Usando dados locais.");
+            } else {
+                throw e;
+            }
+        }
     }
 
     await delay(300);
@@ -779,20 +943,24 @@ const payInstallment = async (installmentId: string, vendedorId: string, actualA
         
         // 1. Mark Current Installment as Paid with the ACTUAL amount paid
         if (isSupabaseConfigured) {
-            await supabase.from('installments').update({ 
-                pago: true, 
-                data_pagamento: new Date().toISOString(),
-                valor: paidValue 
-            }).eq('id', inst.id);
-            
-            await supabase.from('cash_flow').insert([{ 
-                tipo: 'ENTRADA', 
-                valor: paidValue, 
-                descricao: `Pagamento Parcela ${inst.numero_parcela}`, 
-                vendedor_id: vendedorId, 
-                venda_id: inst.venda_id,
-                data: new Date().toISOString() 
-            }]);
+            try {
+                await supabase.from('installments').update({ 
+                    pago: true, 
+                    data_pagamento: new Date().toISOString(),
+                    valor: paidValue 
+                }).eq('id', inst.id);
+                
+                await supabase.from('cash_flow').insert([{ 
+                    tipo: 'ENTRADA', 
+                    valor: paidValue, 
+                    descricao: `Pagamento Parcela ${inst.numero_parcela}`, 
+                    vendedor_id: vendedorId, 
+                    venda_id: inst.venda_id,
+                    data: new Date().toISOString() 
+                }]);
+            } catch (e) {
+                if (!isNetworkError(e)) throw e;
+            }
         } else {
             // Mock Update
             const installments = getStorage<Installment[]>('installments', []);
@@ -814,14 +982,18 @@ const payInstallment = async (installmentId: string, vendedorId: string, actualA
             let nextInstallment: Installment | null = null;
 
             if (isSupabaseConfigured) {
-                const { data } = await supabase.from('installments')
-                    .select('*')
-                    .eq('venda_id', inst.venda_id)
-                    .gt('numero_parcela', inst.numero_parcela)
-                    .order('numero_parcela')
-                    .limit(1)
-                    .maybeSingle();
-                nextInstallment = data;
+                try {
+                    const { data } = await supabase.from('installments')
+                        .select('*')
+                        .eq('venda_id', inst.venda_id)
+                        .gt('numero_parcela', inst.numero_parcela)
+                        .order('numero_parcela')
+                        .limit(1)
+                        .maybeSingle();
+                    nextInstallment = data;
+                } catch (e) {
+                    if (!isNetworkError(e)) throw e;
+                }
             } else {
                 const allMock = getStorage<Installment[]>('installments', []);
                 nextInstallment = allMock
@@ -830,10 +1002,13 @@ const payInstallment = async (installmentId: string, vendedorId: string, actualA
             }
 
             if (nextInstallment) {
-                // If there is a next installment, adjust it (add positive diff, subtract negative diff)
                 const newNextValue = Number((nextInstallment.valor + difference).toFixed(2));
                 if (isSupabaseConfigured) {
-                    await supabase.from('installments').update({ valor: newNextValue }).eq('id', nextInstallment.id);
+                    try {
+                        await supabase.from('installments').update({ valor: newNextValue }).eq('id', nextInstallment.id);
+                    } catch (e) {
+                        if (!isNetworkError(e)) throw e;
+                    }
                 } else {
                     const allMock = getStorage<Installment[]>('installments', []);
                     const nIdx = allMock.findIndex(i => i.id === nextInstallment!.id);
@@ -843,7 +1018,6 @@ const payInstallment = async (installmentId: string, vendedorId: string, actualA
                     }
                 }
             } else if (difference > 0) {
-                // LAST INSTALLMENT + DEBT (Underpaid) -> Create New Installment
                 const newInstallment = {
                     venda_id: inst.venda_id,
                     numero_parcela: inst.numero_parcela + 1,
@@ -854,7 +1028,11 @@ const payInstallment = async (installmentId: string, vendedorId: string, actualA
                 };
 
                 if (isSupabaseConfigured) {
-                    await supabase.from('installments').insert([newInstallment]);
+                    try {
+                        await supabase.from('installments').insert([newInstallment]);
+                    } catch (e) {
+                        if (!isNetworkError(e)) throw e;
+                    }
                 } else {
                     const allMock = getStorage<Installment[]>('installments', []);
                     setStorage('installments', [...allMock, { ...newInstallment, id: uuidv4() }]);
@@ -862,24 +1040,26 @@ const payInstallment = async (installmentId: string, vendedorId: string, actualA
             }
         }
 
-        // 3. Update Sale Status AND Recalculate Total Sale Value (Important!)
+        // 3. Update Sale Status AND Recalculate Total Sale Value
         if (isSupabaseConfigured) {
-             const { data: allInst } = await supabase.from('installments').select('pago, valor').eq('venda_id', inst.venda_id);
-             if (allInst) {
-                 const allPaid = allInst.every((i: any) => i.pago);
-                 const somePaid = allInst.some((i: any) => i.pago);
-                 
-                 // Recalculate Total to match all installments (handles interest/discount)
-                 const newTotal = allInst.reduce((acc, curr) => acc + curr.valor, 0);
+             try {
+                 const { data: allInst } = await supabase.from('installments').select('pago, valor').eq('venda_id', inst.venda_id);
+                 if (allInst) {
+                     const allPaid = allInst.every((i: any) => i.pago);
+                     const somePaid = allInst.some((i: any) => i.pago);
+                     const newTotal = allInst.reduce((acc, curr) => acc + curr.valor, 0);
 
-                 let status: SaleStatus = 'ABERTA';
-                 if (allPaid) status = 'QUITADA';
-                 else if (somePaid) status = 'PARCIAL';
-                 
-                 await supabase.from('sales').update({ 
-                     status,
-                     valor_total: newTotal
-                 }).eq('id', inst.venda_id);
+                     let status: SaleStatus = 'ABERTA';
+                     if (allPaid) status = 'QUITADA';
+                     else if (somePaid) status = 'PARCIAL';
+                     
+                     await supabase.from('sales').update({ 
+                         status,
+                         valor_total: newTotal
+                     }).eq('id', inst.venda_id);
+                 }
+             } catch (e) {
+                 if (!isNetworkError(e)) throw e;
              }
         } else {
             const allMock = getStorage<Installment[]>('installments', []);
@@ -892,32 +1072,42 @@ const payInstallment = async (installmentId: string, vendedorId: string, actualA
             const sIdx = sales.findIndex(s => s.id === inst.venda_id);
             if (sIdx > -1) {
                 sales[sIdx].status = allPaid ? 'QUITADA' : somePaid ? 'PARCIAL' : 'ABERTA';
-                sales[sIdx].valor_total = newTotal; // Update total
+                sales[sIdx].valor_total = newTotal;
                 setStorage('sales', sales);
             }
         }
     };
 
     if (isSupabaseConfigured) {
-        const { data: inst } = await supabase.from('installments').select('*').eq('id', installmentId).single();
-        if (!inst || inst.pago) return;
-        await processPaymentLogic(inst, actualAmountPaid !== undefined ? actualAmountPaid : inst.valor);
-    } else {
-        await delay(300);
-        const installments = getStorage<Installment[]>('installments', []);
-        const inst = installments.find(i => i.id === installmentId);
-        if (!inst || inst.pago) return;
-        await processPaymentLogic(inst, actualAmountPaid !== undefined ? actualAmountPaid : inst.valor);
+        try {
+            const { data: inst } = await supabase.from('installments').select('*').eq('id', installmentId).single();
+            if (!inst || inst.pago) return;
+            await processPaymentLogic(inst, actualAmountPaid !== undefined ? actualAmountPaid : inst.valor);
+            return;
+        } catch (e) {
+            if (!isNetworkError(e)) throw e;
+            console.warn("[payInstallment] Erro de rede. Processando pagamento localmente.");
+        }
     }
+    
+    await delay(300);
+    const installments = getStorage<Installment[]>('installments', []);
+    const inst = installments.find(i => i.id === installmentId);
+    if (!inst || inst.pago) return;
+    await processPaymentLogic(inst, actualAmountPaid !== undefined ? actualAmountPaid : inst.valor);
 };
 
 const addExpense = async (description: string, value: number, vendedorId: string, categoria?: string): Promise<void> => {
-     // NOTE: vendedorId here represents who *performed* the action OR which wallet it affects
      const finalDesc = categoria ? `[${categoria}] ${description}` : description;
      if (isSupabaseConfigured) {
-         const { error } = await supabase.from('cash_flow').insert([{ tipo: 'SAIDA', valor: value, descricao: finalDesc, vendedor_id: vendedorId, data: new Date().toISOString() }]);
-         if (error) handleSupabaseError(error);
-         return;
+         try {
+             const { error } = await supabase.from('cash_flow').insert([{ tipo: 'SAIDA', valor: value, descricao: finalDesc, vendedor_id: vendedorId, data: new Date().toISOString() }]);
+             if (error) handleSupabaseError(error);
+             return;
+         } catch (e) {
+             if (!isNetworkError(e)) throw e;
+             console.warn("[addExpense] Erro de rede. Salvando despesa localmente.");
+         }
      }
      await delay(300);
      const cash = getStorage<CashEntry[]>('cash', []);
@@ -927,9 +1117,14 @@ const addExpense = async (description: string, value: number, vendedorId: string
 
 const deleteCashEntry = async (id: string): Promise<void> => {
       if (isSupabaseConfigured) {
-          const { error } = await supabase.from('cash_flow').delete().eq('id', id);
-          if (error) handleSupabaseError(error);
-          return;
+          try {
+              const { error } = await supabase.from('cash_flow').delete().eq('id', id);
+              if (error) handleSupabaseError(error);
+              return;
+          } catch (e) {
+              if (!isNetworkError(e)) throw e;
+              console.warn("[deleteCashEntry] Erro de rede. Excluindo localmente.");
+          }
       }
       await delay(300);
       const cash = getStorage<CashEntry[]>('cash', []);
@@ -952,11 +1147,19 @@ const getCashFlow = async (sellerIdOverride?: string): Promise<CashEntry[]> => {
       };
 
       if (isSupabaseConfigured) {
-          let query = supabase.from('cash_flow').select('*').order('data', { ascending: false });
-          if (filterId && filterId !== 'all') { query = query.eq('vendedor_id', filterId); } // STRICT SECURITY or Specific Seller
-          const { data, error } = await query;
-          if (error && error.code !== '42P01') handleSupabaseError(error);
-          return parseCategoria(data || []);
+          try {
+              let query = supabase.from('cash_flow').select('*').order('data', { ascending: false });
+              if (filterId && filterId !== 'all') { query = query.eq('vendedor_id', filterId); }
+              const { data, error } = await query;
+              if (error && error.code !== '42P01') handleSupabaseError(error);
+              return parseCategoria(data || []);
+          } catch (e) {
+              if (isNetworkError(e)) {
+                  console.warn("[getCashFlow] Erro de rede. Usando dados locais.");
+              } else {
+                  throw e;
+              }
+          }
       }
       await delay(300);
       let cash = getStorage<CashEntry[]>('cash', []);
@@ -1045,39 +1248,47 @@ const getDetailedReports = async (startDate: Date, endDate: Date, sellerId?: str
     }
 
     if (isSupabaseConfigured) {
-        let salesQuery = supabase.from('sales').select('*, clients(nome)').gte('data_venda', startDate.toISOString()).lte('data_venda', endDate.toISOString());
-        let cashQuery = supabase.from('cash_flow').select('*').eq('tipo', 'ENTRADA').gte('data', startDate.toISOString()).lte('data', endDate.toISOString());
-        
-        if (finalSellerId && finalSellerId !== 'all') {
-            salesQuery = salesQuery.eq('vendedor_id', finalSellerId);
-            cashQuery = cashQuery.eq('vendedor_id', finalSellerId);
-        }
+        try {
+            let salesQuery = supabase.from('sales').select('*, clients(nome)').gte('data_venda', startDate.toISOString()).lte('data_venda', endDate.toISOString());
+            let cashQuery = supabase.from('cash_flow').select('*').eq('tipo', 'ENTRADA').gte('data', startDate.toISOString()).lte('data', endDate.toISOString());
+            
+            if (finalSellerId && finalSellerId !== 'all') {
+                salesQuery = salesQuery.eq('vendedor_id', finalSellerId);
+                cashQuery = cashQuery.eq('vendedor_id', finalSellerId);
+            }
 
-        const { data: sData, error: sError } = await salesQuery;
-        const { data: cData, error: cError } = await cashQuery;
-        
-        let expensesQuery = supabase.from('cash_flow').select('*').eq('tipo', 'SAIDA').gte('data', startDate.toISOString()).lte('data', endDate.toISOString());
-        if (finalSellerId && finalSellerId !== 'all') {
-            expensesQuery = expensesQuery.eq('vendedor_id', finalSellerId);
-        }
-        const { data: eData, error: eError } = await expensesQuery;
+            const { data: sData, error: sError } = await salesQuery;
+            const { data: cData, error: cError } = await cashQuery;
+            
+            let expensesQuery = supabase.from('cash_flow').select('*').eq('tipo', 'SAIDA').gte('data', startDate.toISOString()).lte('data', endDate.toISOString());
+            if (finalSellerId && finalSellerId !== 'all') {
+                expensesQuery = expensesQuery.eq('vendedor_id', finalSellerId);
+            }
+            const { data: eData, error: eError } = await expensesQuery;
 
-        if (sError) handleSupabaseError(sError);
-        
-        const parseCategoria = (entries: any[]) => {
-            return entries.map(e => {
-                if (e.descricao) {
-                    const match = e.descricao.match(/^\[(.*?)\]\s*(.*)$/);
-                    if (match) {
-                        return { ...e, categoria: match[1], descricao: match[2] };
+            if (sError) handleSupabaseError(sError);
+            
+            const parseCategoria = (entries: any[]) => {
+                return entries.map(e => {
+                    if (e.descricao) {
+                        const match = e.descricao.match(/^\[(.*?)\]\s*(.*)$/);
+                        if (match) {
+                            return { ...e, categoria: match[1], descricao: match[2] };
+                        }
                     }
-                }
-                return e;
-            });
-        };
+                    return e;
+                });
+            };
 
-        const sales = (sData || []).map((s: any) => ({ ...s, cliente_nome: s.clients?.nome || 'Desconhecido' }));
-        return processData(sales, cData || [], parseCategoria(eData || []));
+            const sales = (sData || []).map((s: any) => ({ ...s, cliente_nome: s.clients?.nome || 'Desconhecido' }));
+            return processData(sales, cData || [], parseCategoria(eData || []));
+        } catch (e) {
+            if (isNetworkError(e)) {
+                console.warn("[getDetailedReports] Erro de rede. Usando dados locais.");
+            } else {
+                throw e;
+            }
+        }
     }
     
     await delay(500);

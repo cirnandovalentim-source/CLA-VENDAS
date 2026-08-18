@@ -39,13 +39,18 @@ export const FichaModal: React.FC<FichaModalProps> = ({
                 backgroundColor: "#ffffff",
                 scrollX: 0,
                 scrollY: 0,
-                windowWidth: 1000,
-                windowHeight: 1000
+                onclone: (clonedDoc) => {
+                    const clonedEl = clonedDoc.getElementById('ficha-content-print');
+                    if (clonedEl) {
+                        clonedEl.style.position = 'static';
+                        clonedEl.style.margin = '0';
+                    }
+                }
             });
             const imgData = canvas.toDataURL('image/png');
-            // Ficha dimensions: 95mm x 135mm. Centered on A4 (210mm x 297mm)
-            // (210 - 95) / 2 = 57.5mm, Top margin: 20mm
-            pdf.addImage(imgData, 'PNG', 57.5, 20, 95, 135);
+            // Ficha dimensions: 85mm x 125mm. Centered on A4 (210mm x 297mm)
+            // (210 - 85) / 2 = 62.5mm, Top margin: 20mm
+            pdf.addImage(imgData, 'PNG', 62.5, 20, 85, 125);
         }
 
         pdf.save(`Ficha_${client.nome.replace(/\s+/g, '_')}.pdf`);
@@ -61,7 +66,7 @@ export const FichaModal: React.FC<FichaModalProps> = ({
     <Modal isOpen={isOpen} onClose={onClose} title="Imprimir Ficha do Cliente">
       <div className="flex flex-col items-center w-full">
         {/* Dedicated Offscreen Element for Pristine PDF Capture */}
-        <div style={{ position: 'fixed', left: '-9999px', top: '0', pointerEvents: 'none', zIndex: -9999 }}>
+        <div style={{ position: 'absolute', left: '-9999px', top: '0', pointerEvents: 'none', width: '321px', height: '472px', overflow: 'hidden' }}>
           <FichaContent id="ficha-content-print" client={client} sale={sale} installments={installments} />
         </div>
 
