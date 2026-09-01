@@ -1,62 +1,56 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-// Chaves do LocalStorage (Ainda funcionam se o usuário quiser sobrescrever)
+// Chaves do LocalStorage (Configuração Manual do Usuário via Interface)
 const LS_KEY = 'cla_supabase_key';
 const LS_URL = 'cla_supabase_url';
 
-// --- CREDENCIAIS DO PROJETO (CONEXÃO DIRETA) ---
-// Configurado automaticamente via solicitação do usuário
-const PROJECT_URL = 'https://nrvylcgywjrsyrhjootj.supabase.co';
-const PROJECT_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ydnlsY2d5d2pyc3lyaGpvb3RqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA1MDIxNzgsImV4cCI6MjA4NjA3ODE3OH0.TwgAMcUxtQ9VnO4tlCyOlTwhDHgk7qZf6Vp-tSIE_EQ';
-
-// --- VALORES DE FALLBACK ---
+// URL de Fallback Seguro
 const DUMMY_URL = 'https://placeholder.supabase.co';
 
-// 1. Recuperar do Storage (caso exista configuração manual)
-const storedUrl = localStorage.getItem(LS_URL);
-const storedKey = localStorage.getItem(LS_KEY);
+// 1. Recuperar do Storage (Prioridade Máxima para configurações salvas pelo usuário)
+const storedUrl = typeof window !== 'undefined' ? localStorage.getItem(LS_URL) : null;
+const storedKey = typeof window !== 'undefined' ? localStorage.getItem(LS_KEY) : null;
 
+// 2. Recuperar das Variáveis de Ambiente (.env)
 // @ts-ignore
 const envUrl = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_SUPABASE_URL : '';
 // @ts-ignore
 const envKey = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_SUPABASE_KEY : '';
 
+// 3. Fallback do Projeto
+const PROJECT_URL = 'https://nrvylcgywjrsyrhjootj.supabase.co';
+const PROJECT_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ydnlsY2d5d2pyc3lyaGpvb3RqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA1MDIxNzgsImV4cCI6MjA4NjA3ODE3OH0.TwgAMcUxtQ9VnO4tlCyOlTwhDHgk7qZf6Vp-tSIE_EQ';
+
 // FUNÇÃO DE VALIDAÇÃO DE CHAVE
-const isValidKey = (key: string | null) => {
+const isValidKey = (key: string | null | undefined) => {
     if (!key) return false;
     const cleanKey = key.trim();
-    // Validação básica para evitar chaves vazias ou placeholders óbvios
     return cleanKey.length > 20 && cleanKey !== 'dummy_key';
 };
 
-// 3. Determinar URL Final
-// A Prioridade é: 1. Código Hardcoded (Conexão Direta) -> 2. LocalStorage -> 3. Env -> 4. Padrão
-let finalUrl = PROJECT_URL; 
-let finalKey = PROJECT_KEY;
+// DETERMINAR URL E CHAVE FINAIS (Precedência: LocalStorage -> .env -> Fallback Válido)
+let finalUrl = DUMMY_URL;
+let finalKey = 'dummy_key';
 
-// Se a chave hardcoded estiver vazia, tentamos pegar do Storage ou Env
-if (!isValidKey(finalKey)) {
-    if (storedUrl && storedUrl.includes('http')) {
-        finalUrl = storedUrl.trim();
-    } else if (envUrl && envUrl.includes('http')) {
-        finalUrl = envUrl.trim();
-    }
-
-    if (isValidKey(storedKey)) {
-        finalKey = storedKey!.trim();
-    } else if (isValidKey(envKey)) {
-        finalKey = envKey.trim();
-    }
+if (storedUrl && storedUrl.startsWith('http') && isValidKey(storedKey)) {
+    finalUrl = storedUrl.trim();
+    finalKey = storedKey!.trim();
+} else if (envUrl && envUrl.startsWith('http') && isValidKey(envKey)) {
+    finalUrl = envUrl.trim();
+    finalKey = envKey.trim();
+} else if (PROJECT_URL && PROJECT_URL.startsWith('http') && isValidKey(PROJECT_KEY) && !PROJECT_URL.includes('nrvylcgywjrsyrhjootj')) {
+    finalUrl = PROJECT_URL.trim();
+    finalKey = PROJECT_KEY.trim();
 }
 
-// 4. Configuração de Estado
+// ESTADO DA CONEXÃO
 export const isSupabaseConfigured = 
   finalUrl !== DUMMY_URL && 
   finalUrl.startsWith('http') &&
   isValidKey(finalKey);
 
-// 5. Funções Auxiliares
+// FUNÇÕES DE CONFIGURAÇÃO VIA INTERFACE
 export const configureSupabase = (key: string, url: string) => {
   if (key) localStorage.setItem(LS_KEY, key.trim());
   if (url) localStorage.setItem(LS_URL, url.trim());
@@ -69,12 +63,11 @@ export const clearSupabaseConfig = () => {
   window.location.reload();
 };
 
-// 6. Criar Cliente
-// Usamos dados seguros se não estiver configurado para evitar crash na inicialização do objeto
+// CLIENTE SUPABASE
 const safeUrl = isSupabaseConfigured ? finalUrl : DUMMY_URL;
 const safeKey = isSupabaseConfigured ? finalKey : 'dummy_key';
 
-console.log(`[Supabase] Status: ${isSupabaseConfigured ? 'ONLINE' : 'OFFLINE'} | URL: ${safeUrl}`);
+console.log(`[Supabase] Status: ${isSupabaseConfigured ? 'ONLINE' : 'OFFLINE (Local)'} | URL: ${safeUrl}`);
 
 export const supabase = createClient(safeUrl, safeKey, {
   auth: {
@@ -91,3 +84,4 @@ export const supabase = createClient(safeUrl, safeKey, {
     }
   }
 });
+

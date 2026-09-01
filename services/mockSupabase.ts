@@ -76,6 +76,9 @@ export const isNetworkError = (error: any): boolean => {
            str.includes('TypeError') ||
            str.includes('NetworkError') ||
            str.includes('network error') ||
+           str.includes('ERR_NETWORK') ||
+           str.includes('ENOTFOUND') ||
+           str.includes('getaddrinfo') ||
            error.name === 'TypeError';
 };
 
