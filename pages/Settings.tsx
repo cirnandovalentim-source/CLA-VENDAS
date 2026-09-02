@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { ICONS, ROUTES } from '../constants';
 import { Card, Button, Input, Modal } from '../components/ui';
 import { dataService, authService } from '../services/mockSupabase';
-import { isSupabaseConfigured, configureSupabase, clearSupabaseConfig, supabase } from '../services/supabaseClient';
+import { isSupabaseConfigured, configureSupabase, clearSupabaseConfig, testSupabaseConnection, supabase } from '../services/supabaseClient';
 import { useTheme } from '../contexts/ThemeContext';
 import { Moon, Sun, Lock, Database, ExternalLink, Wifi, WifiOff } from 'lucide-react';
 
@@ -44,20 +44,21 @@ const Settings: React.FC = () => {
     }
   }, [isSupabaseModalOpen]);
 
-  const handleSaveSupabaseConfig = () => {
-    if (!supabaseUrl.trim() || !supabaseKey.trim()) {
-      setSupaTestMsg('Por favor, preencha a URL e a Chave do Supabase.');
-      return;
-    }
-    if (!supabaseUrl.trim().startsWith('https://')) {
-      setSupaTestMsg('A URL deve começar com https://');
-      return;
-    }
+  const handleSaveSupabaseConfig = async () => {
     setIsTestingSupa(true);
-    setSupaTestMsg('Salvando e reconectando...');
-    setTimeout(() => {
-      configureSupabase(supabaseKey.trim(), supabaseUrl.trim());
-    }, 800);
+    setSupaTestMsg('Testando conexão com o Supabase...');
+
+    const res = await testSupabaseConnection(supabaseUrl, supabaseKey);
+
+    if (res.success) {
+      setSupaTestMsg('✅ ' + res.message);
+      setTimeout(() => {
+        configureSupabase(res.cleanKey, res.cleanUrl);
+      }, 1200);
+    } else {
+      setIsTestingSupa(false);
+      setSupaTestMsg('❌ ' + res.message);
+    }
   };
 
   // Focus password input on mount
@@ -228,15 +229,17 @@ const Settings: React.FC = () => {
            <div className="flex justify-between items-start">
              <div>
                <h3 className="font-bold text-lg flex items-center gap-2 text-gray-900 dark:text-white">
-                  <Database size={20} className="text-brand-primary" /> Banco de Dados Supabase
+                  <Database size={20} className="text-brand-primary" /> Armazenamento & Banco de Dados
                </h3>
                <p className="text-sm text-gray-500 mt-1">
-                 Conecte o aplicativo ao seu projeto do Supabase em nuvem.
+                 {isSupabaseConfigured 
+                   ? 'Sincronização em nuvem ativa via Supabase.' 
+                   : 'O sistema está rodando com Banco de Dados Integrado e seguro (pronto para uso).'}
                </p>
              </div>
-             <div className={`px-2.5 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 border ${isSupabaseConfigured ? 'bg-green-500/10 text-green-600 border-green-500/20' : 'bg-amber-500/10 text-amber-600 border-amber-500/20'}`}>
-                {isSupabaseConfigured ? <Wifi size={12} /> : <WifiOff size={12} />}
-                {isSupabaseConfigured ? 'ONLINE' : 'OFFLINE'}
+             <div className="px-2.5 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 border bg-green-500/10 text-green-600 border-green-500/20">
+                <Wifi size={12} className="text-green-500" />
+                {isSupabaseConfigured ? 'Supabase Nuvem' : 'Banco Integrado Ativo'}
              </div>
            </div>
 
@@ -247,7 +250,7 @@ const Settings: React.FC = () => {
                 fullWidth
                 className="text-xs"
               >
-                 Configurar URL e Chave
+                 {isSupabaseConfigured ? 'Alterar Credenciais Supabase' : 'Conectar Supabase (Opcional)'}
               </Button>
               <Button 
                 onClick={() => navigate(ROUTES.SETUP)}
@@ -344,8 +347,16 @@ const Settings: React.FC = () => {
       <Modal isOpen={isSupabaseModalOpen} onClose={() => setIsSupabaseModalOpen(false)} title="Conectar ao Supabase">
          <div className="space-y-4">
             <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-xl border border-blue-100 dark:border-blue-800 text-xs text-blue-700 dark:text-blue-300">
-               <p className="mb-1 font-bold">Instruções de Conexão:</p>
-               <p>Cole a URL do seu projeto e a chave anon public do Supabase dashboard para ativar a sincronização em nuvem.</p>
+               <p className="mb-1 font-bold">Onde encontrar suas chaves no Supabase:</p>
+               <p className="mb-2">Acesse seu projeto &gt; <strong>Project Settings</strong> &gt; <strong>API</strong>. Copie a <strong>Project URL</strong> e a chave <strong>anon public</strong>.</p>
+               <a 
+                 href="https://supabase.com/dashboard" 
+                 target="_blank" 
+                 rel="noopener noreferrer"
+                 className="inline-flex items-center gap-1 text-brand-primary font-bold underline hover:text-brand-primary/90 transition-colors"
+               >
+                 Abrir Supabase Dashboard <ExternalLink size={12} />
+               </a>
             </div>
 
             <Input 

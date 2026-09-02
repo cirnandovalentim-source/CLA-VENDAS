@@ -6,6 +6,7 @@ export interface User {
   email: string;
   nome: string;
   perfil: UserProfileType;
+  senha?: string;
   telefone?: string;
   ativo: boolean;
   comissao_porcentagem?: number; // New field for commission rate (e.g., 5 for 5%)

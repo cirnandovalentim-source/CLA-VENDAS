@@ -1,0 +1,106 @@
+{
+  "entities": {
+    "users": {
+      "title": "users",
+      "description": "System users and sellers",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "email": { "type": "string" },
+        "nome": { "type": "string" },
+        "perfil": { "type": "string", "enum": ["admin", "vendedor"] },
+        "senha": { "type": "string" },
+        "ativo": { "type": "boolean" },
+        "comissao_porcentagem": { "type": "number" }
+      },
+      "required": ["email", "nome", "perfil"]
+    },
+    "clients": {
+      "title": "clients",
+      "description": "Clients registered in the sales system",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "nome": { "type": "string" },
+        "cpf_cnpj": { "type": "string" },
+        "telefone": { "type": "string" },
+        "email": { "type": "string" },
+        "endereco": { "type": "string" },
+        "cidade": { "type": "string" },
+        "estado": { "type": "string" },
+        "cep": { "type": "string" },
+        "observacoes": { "type": "string" },
+        "foto_url": { "type": "string" },
+        "vendedor_id": { "type": "string" },
+        "data_cadastro": { "type": "string" }
+      },
+      "required": ["nome"]
+    },
+    "products": {
+      "title": "products",
+      "description": "Products catalog",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "nome": { "type": "string" },
+        "descricao": { "type": "string" },
+        "preco": { "type": "number" },
+        "estoque": { "type": "number" },
+        "codigo_barras": { "type": "string" },
+        "ativo": { "type": "boolean" }
+      },
+      "required": ["nome", "preco"]
+    },
+    "sales": {
+      "title": "sales",
+      "description": "Sales records",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "cliente_id": { "type": "string" },
+        "vendedor_id": { "type": "string" },
+        "data_venda": { "type": "string" },
+        "valor_total": { "type": "number" },
+        "forma_pagamento": { "type": "string" },
+        "numero_parcelas": { "type": "number" },
+        "status": { "type": "string" },
+        "observacoes": { "type": "string" },
+        "desconto": { "type": "number" }
+      },
+      "required": ["cliente_id", "valor_total", "data_venda"]
+    },
+    "installments": {
+      "title": "installments",
+      "description": "Sales payment installments",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "venda_id": { "type": "string" },
+        "numero_parcela": { "type": "number" },
+        "valor": { "type": "number" },
+        "data_vencimento": { "type": "string" },
+        "pago": { "type": "boolean" },
+        "data_pagamento": { "type": "string" },
+        "forma_pagamento": { "type": "string" },
+        "observacoes": { "type": "string" }
+      },
+      "required": ["venda_id", "numero_parcela", "valor"]
+    },
+    "cash_flow": {
+      "title": "cash_flow",
+      "description": "Cash flow transactions (incomes and expenses)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "tipo": { "type": "string", "enum": ["ENTRADA", "SAIDA"] },
+        "valor": { "type": "number" },
+        "descricao": { "type": "string" },
+        "categoria": { "type": "string" },
+        "data": { "type": "string" },
+        "venda_id": { "type": "string" },
+        "vendedor_id": { "type": "string" }
+      },
+      "required": ["tipo", "valor", "data"]
+    }
+  }
+}

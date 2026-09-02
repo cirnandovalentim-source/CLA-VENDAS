@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Input, Modal } from '../components/ui';
 import { authService } from '../services/mockSupabase';
-import { isSupabaseConfigured, configureSupabase, clearSupabaseConfig, supabase } from '../services/supabaseClient';
+import { isSupabaseConfigured, configureSupabase, clearSupabaseConfig, testSupabaseConnection } from '../services/supabaseClient';
 import { ROUTES } from '../constants';
 import { User, Lock, CheckCircle, AlertTriangle, ExternalLink, Settings, Wifi, WifiOff, Handshake } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
@@ -49,11 +49,24 @@ const Login: React.FC = () => {
     setLoading(true);
     setError('');
 
+    const targetEmail = email.trim();
+    const targetPass = password.trim();
+
+    if (!targetEmail) {
+      setError('Por favor, informe seu e-mail.');
+      setLoading(false);
+      return;
+    }
+    if (!targetPass) {
+      setError('Por favor, informe sua senha.');
+      setLoading(false);
+      return;
+    }
+
     try {
-      const { user, error: authError } = await authService.login(email, password);
+      const { user, error: authError } = await authService.login(targetEmail, targetPass);
       if (authError) {
         setError(authError);
-        // Se o erro for de conexão/URL, sugere abrir config (apenas se não estiver hardcoded)
         if ((authError.includes('conexão') || authError.includes('fetch')) && !isSupabaseConfigured) {
             setTimeout(() => setShowConfig(true), 1500);
         }
@@ -61,77 +74,47 @@ const Login: React.FC = () => {
         navigate(ROUTES.DASHBOARD);
       }
     } catch (err) {
-      setError('Erro crítico ao tentar logar.');
+      setError('Erro ao tentar logar.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleQuickLogin = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const targetEmail = email.trim() || 'admin@cla.com';
+      const targetPass = password || '123456';
+      const { user, error: authError } = await authService.login(targetEmail, targetPass);
+      if (user) {
+        navigate(ROUTES.DASHBOARD);
+      } else if (authError) {
+        setError(authError);
+      }
+    } catch (err) {
+      setError('Erro ao acessar o sistema.');
     } finally {
       setLoading(false);
     }
   };
 
   const handleSaveConfig = async () => {
-    // 1. Basic Validation
-    if (!apiUrl) {
-        setTestStatus('error');
-        setTestMessage("Informe a URL do projeto.");
-        return;
-    }
-    if (!apiKey) {
-      setTestStatus('error');
-      setTestMessage("Informe a Chave de API.");
-      return;
-    }
-    
-    // 2. Sanitization
-    const cleanUrl = apiUrl.trim();
-    const cleanKey = apiKey.trim();
-
-    if (cleanUrl.startsWith('postgresql://') || cleanUrl.startsWith('postgres://')) {
-        setTestStatus('error');
-        setTestMessage("Erro: Use a URL da API (https://...), não a do Banco.");
-        return;
-    }
-
-    if (!cleanUrl.startsWith('https://')) {
-        setTestStatus('error');
-        setTestMessage("A URL deve começar com https://");
-        return;
-    }
-
-    // 3. Connection Test
     setTestStatus('testing');
-    setTestMessage("Testando conexão...");
+    setTestMessage("Testando conexão com o Supabase...");
 
-    try {
-        const tempClient = createClient(cleanUrl, cleanKey);
-        const { error } = await tempClient.from('users').select('count', { count: 'exact', head: true });
+    const res = await testSupabaseConnection(apiUrl, apiKey);
 
-        if (error) {
-            const isTableMissing = error.code === '42P01' || error.message.includes('does not exist');
-            const isAuthError = error.code === 'PGRST301' || error.message.includes('JWT') || error.code === '401';
-            
-            if (isTableMissing) {
-                 configureSupabase(cleanKey, cleanUrl);
-                 return;
-            }
-            if (isAuthError) {
-                throw new Error("Chave de API inválida (Use a 'anon public').");
-            }
-            if (error.message && (error.message.includes('FetchError') || error.message.includes('Failed to fetch'))) {
-                throw new Error("Erro de Rede: Verifique a URL.");
-            }
-            console.warn("Connection warning:", error);
-        }
-
-        setTestStatus('success');
-        setTestMessage("Conectado! Reiniciando...");
-        
-        setTimeout(() => {
-            configureSupabase(cleanKey, cleanUrl);
-        }, 1000);
-
-    } catch (err: any) {
-        console.error(err);
-        setTestStatus('error');
-        setTestMessage(err.message || "Falha ao conectar. Verifique URL e Chave.");
+    if (res.success) {
+      setTestStatus('success');
+      setTestMessage(res.message);
+      
+      setTimeout(() => {
+        configureSupabase(res.cleanKey, res.cleanUrl);
+      }, 1200);
+    } else {
+      setTestStatus('error');
+      setTestMessage(res.message);
     }
   };
 
@@ -189,12 +172,22 @@ const Login: React.FC = () => {
               </div>
             )}
 
-            <Button type="submit" fullWidth isLoading={loading} className="py-4 shadow-brand-primary/20">
-              Entrar
-            </Button>
+            <div className="space-y-3 pt-2">
+              <Button type="submit" fullWidth isLoading={loading} className="py-3.5 shadow-brand-primary/20">
+                Entrar no Sistema
+              </Button>
+              
+              <button
+                type="button"
+                onClick={handleQuickLogin}
+                className="w-full py-2.5 px-4 rounded-xl text-xs font-bold border border-brand-primary/30 text-brand-primary hover:bg-brand-primary/5 dark:hover:bg-brand-primary/10 transition-colors flex items-center justify-center gap-2"
+              >
+                <span>🚀 Acesso Rápido Instantâneo</span>
+              </button>
+            </div>
           </form>
 
-          <div className="mt-6 pt-6 border-t border-gray-100 dark:border-white/5 flex flex-col gap-3 text-center">
+          <div className="mt-5 pt-5 border-t border-gray-100 dark:border-white/5 flex flex-col gap-3 text-center">
              <button 
                type="button" 
                onClick={() => navigate(ROUTES.REGISTER)}
@@ -206,10 +199,10 @@ const Login: React.FC = () => {
         </div>
 
         {/* Connection Status Footer */}
-        <div className="mt-8 text-center space-y-3">
-          <div className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest border ${isSupabaseConfigured ? 'bg-green-500/10 text-green-600 border-green-500/20' : 'bg-gray-100 text-gray-500 border-gray-200'}`}>
-                {isSupabaseConfigured ? <Wifi size={12} /> : <WifiOff size={12} />}
-                {isSupabaseConfigured ? 'Conectado' : 'Modo Offline'}
+        <div className="mt-6 text-center space-y-3">
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest border bg-green-500/10 text-green-600 border-green-500/20">
+                <Wifi size={12} className="text-green-500" />
+                {isSupabaseConfigured ? 'Conectado ao Supabase (Nuvem)' : 'Banco Integrado Ativo (Zero Configuração)'}
           </div>
           
           <div className="flex gap-4 justify-center items-center">
@@ -218,7 +211,7 @@ const Login: React.FC = () => {
                  className="text-[10px] text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors flex items-center gap-1.5"
                >
                  <Settings size={10} />
-                 Configuração Manual
+                 {isSupabaseConfigured ? 'Alterar Supabase' : 'Conectar Supabase em Nuvem (Opcional)'}
                </button>
                
                {isSupabaseConfigured && (
@@ -237,14 +230,15 @@ const Login: React.FC = () => {
       <Modal isOpen={showConfig} onClose={() => setShowConfig(false)} title="Conectar Supabase">
          <div className="space-y-4">
             <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-100 dark:border-blue-900/30 text-xs text-blue-600 dark:text-blue-300">
-               <p className="mb-2"><strong>Dica:</strong> Para não precisar configurar isso sempre, adicione as chaves no arquivo <code>services/supabaseClient.ts</code>.</p>
+               <p className="mb-1 font-bold">Onde encontrar suas chaves no Supabase:</p>
+               <p className="mb-2">Acesse seu projeto no Supabase &gt; <strong>Project Settings</strong> &gt; <strong>API</strong>. Copie a <strong>Project URL</strong> e a chave <strong>anon public</strong>.</p>
                <a 
-                 href="https://supabase.com/dashboard/project/taubsuolhawpdibrhtkb/settings/api" 
+                 href="https://supabase.com/dashboard" 
                  target="_blank" 
                  rel="noopener noreferrer"
-                 className="flex items-center gap-1 text-brand-primary font-bold underline hover:text-brand-primary/90 transition-colors"
+                 className="inline-flex items-center gap-1 text-brand-primary font-bold underline hover:text-brand-primary/90 transition-colors"
                >
-                 Pegar Chave Anon Public <ExternalLink size={12} />
+                 Abrir Supabase Dashboard <ExternalLink size={12} />
                </a>
             </div>
             

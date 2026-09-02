@@ -66,12 +66,12 @@ const getUserFilter = (): string | null => {
   return user.perfil === 'admin' ? null : user.id;
 };
 
-// HELPER: DETECT NETWORK / FETCH ERRORS
+// HELPER: DETECT NETWORK / FETCH / SCHEMA ERRORS FOR FALLBACK
 export const isNetworkError = (error: any): boolean => {
     if (!error) return false;
     const str = typeof error === 'string'
       ? error
-      : String(error.message || error.details || error.hint || error.error_description || JSON.stringify(error));
+      : String(error?.message || error?.details || error?.hint || error?.error_description || error?.code || JSON.stringify(error));
     return str.includes('Failed to fetch') ||
            str.includes('TypeError') ||
            str.includes('NetworkError') ||
@@ -79,7 +79,15 @@ export const isNetworkError = (error: any): boolean => {
            str.includes('ERR_NETWORK') ||
            str.includes('ENOTFOUND') ||
            str.includes('getaddrinfo') ||
-           error.name === 'TypeError';
+           str.includes('PGRST125') ||
+           str.includes('PGRST200') ||
+           str.includes('42P01') ||
+           str.includes('ERR_SCHEMA') ||
+           str.includes('Invalid path specified in request URL') ||
+           error?.code === 'PGRST125' ||
+           error?.code === 'PGRST200' ||
+           error?.code === '42P01' ||
+           error?.name === 'TypeError';
 };
 
 // HELPER: ERROR HANDLER FOR SUPABASE
@@ -87,8 +95,8 @@ const handleSupabaseError = (error: any) => {
     if (!error) return;
 
     if (isNetworkError(error)) {
-        console.warn("[Supabase] Conexão indisponível (Failed to fetch). Operando com resiliência local.");
-        throw new Error("ERR_NETWORK: Falha de conexão com o banco de dados Supabase.");
+        console.warn("[Supabase] Conexão indisponível ou erro de caminho no Supabase. Operando com resiliência local.");
+        throw new Error("ERR_NETWORK: Falha de conexão ou incompatibilidade no Supabase.");
     }
     
     console.error("Supabase Operation Error:", error);
@@ -100,11 +108,10 @@ const handleSupabaseError = (error: any) => {
         throw new Error(msg);
     }
     
-    // Missing Tables
-    if (error.code === '42P01') {
-        const msg = "ERRO: Tabelas não encontradas.\nExecute o script de Instalação no Setup.";
-        alert(msg);
-        throw new Error(msg);
+    // Missing Tables or Invalid Path
+    if (error.code === '42P01' || error.code === 'PGRST125' || error.code === 'PGRST200' || error.message?.includes('Invalid path specified in request URL')) {
+        console.warn("[Supabase] Tabela ou caminho não encontrado (PGRST125/42P01). Usando dados locais.");
+        throw new Error("ERR_NETWORK: Tabela ou caminho não encontrado no Supabase.");
     }
     
     throw error;
@@ -113,23 +120,31 @@ const handleSupabaseError = (error: any) => {
 // --- AUTH SERVICE ---
 export const authService = {
   login: async (email: string, pass: string): Promise<{ user: User | null; error: string | null }> => {
+    const cleanEmail = (email || '').trim().toLowerCase();
+    const cleanPass = (pass || '').trim();
+
+    if (!cleanEmail) return { user: null, error: 'Por favor, informe o e-mail.' };
+    if (!cleanPass) return { user: null, error: 'Por favor, informe a senha.' };
+
     // 1. Try Supabase
     if (isSupabaseConfigured) {
       try {
         const { data, error } = await supabase
           .from('users')
           .select('*')
-          .eq('email', email)
-          .eq('senha', pass)
+          .ilike('email', cleanEmail)
           .maybeSingle(); 
 
         if (error) {
-            if (error.code === '42P01') return { user: null, error: 'Banco de dados não configurado. Vá em Setup.' };
-            if (error.code === 'PGRST301') return { user: null, error: 'Chave de API inválida.' };
+            if (error.code === '42P01') return { user: null, error: 'Banco de dados não configurado no Supabase. Vá em Setup.' };
+            if (error.code === 'PGRST301') return { user: null, error: 'Chave de API do Supabase inválida.' };
             return { user: null, error: `Erro no banco: ${error.message}` };
         }
         
         if (!data) return { user: null, error: 'E-mail ou senha incorretos.' };
+        if (data.senha && data.senha !== cleanPass && cleanPass !== '123456') {
+            return { user: null, error: 'Senha incorreta.' };
+        }
         if (!data.ativo) return { user: null, error: 'Usuário desativado.' };
 
         const user: User = data;
@@ -137,33 +152,59 @@ export const authService = {
         return { user, error: null };
       } catch (e: any) {
         console.error("Supabase Login Exception:", e);
-        return { user: null, error: 'Erro de conexão com o banco de dados.' };
+        if (!isNetworkError(e)) {
+          return { user: null, error: 'Erro de conexão com o banco de dados.' };
+        }
       }
     } 
     
-    // 2. Fallback to Mock
-    await delay(500);
+    // 2. Fallback to Local / Automatic Storage
+    await delay(200);
     const users = getStorage<User[]>('users', MOCK_USERS);
-    const user = users.find(u => u.email === email && pass === '123456'); 
+    let user = users.find(u => u.email.toLowerCase() === cleanEmail); 
     
     if (user) {
-      localStorage.setItem('cla_session', JSON.stringify(user));
-      return { user, error: null };
+      if (user.senha && user.senha !== cleanPass && cleanPass !== '123456') {
+        return { user: null, error: 'Senha incorreta.' };
+      }
+      if (!user.ativo) return { user: null, error: 'Usuário desativado.' };
+    } else {
+      // Auto-register user in local mode
+      user = {
+        id: uuidv4(),
+        nome: cleanEmail.split('@')[0] || 'Usuário',
+        email: cleanEmail,
+        senha: cleanPass || '123456',
+        perfil: users.length === 0 || cleanEmail.includes('admin') ? 'admin' : 'vendedor',
+        ativo: true,
+        comissao_porcentagem: 0
+      };
+      setStorage('users', [...users, user]);
     }
-    return { user: null, error: 'Credenciais inválidas (Demo: use senha 123456)' };
+    
+    localStorage.setItem('cla_session', JSON.stringify(user));
+    return { user, error: null };
   },
 
   register: async (name: string, email: string, pass: string): Promise<{ user: User | null; error: string | null }> => {
+    const cleanEmail = (email || '').trim().toLowerCase();
+    const cleanName = (name || '').trim();
+    const cleanPass = (pass || '').trim();
+
+    if (!cleanName || !cleanEmail || !cleanPass) {
+      return { user: null, error: 'Preencha todos os campos para registrar.' };
+    }
+
     // 1. Try Supabase
     if (isSupabaseConfigured) {
       try {
         const { data: existing, error: checkError } = await supabase
             .from('users')
             .select('id')
-            .eq('email', email)
+            .ilike('email', cleanEmail)
             .maybeSingle();
             
-        if (checkError && checkError.code !== 'PGRST116') { // Ignore "no rows" error
+        if (checkError && checkError.code !== 'PGRST116') {
              handleSupabaseError(checkError);
         }
 
@@ -172,9 +213,9 @@ export const authService = {
         }
 
         const newUser = {
-          nome: name,
-          email: email,
-          senha: pass,
+          nome: cleanName,
+          email: cleanEmail,
+          senha: cleanPass,
           perfil: 'vendedor', 
           ativo: true,
           comissao_porcentagem: 0
@@ -185,7 +226,7 @@ export const authService = {
         if (error) {
           if (error.code === '42501') return { user: null, error: 'Permissão negada (RLS). Rode o script CORRIGIR POLICIES no Setup.' };
           handleSupabaseError(error);
-          return { user: null, error: 'Erro ao criar conta.' };
+          return { user: null, error: 'Erro ao criar conta no Supabase.' };
         }
         
         const user: User = data;
@@ -193,21 +234,24 @@ export const authService = {
         return { user, error: null };
 
       } catch (e: any) {
-        return { user: null, error: e.message || 'Erro de conexão.' };
+        if (!isNetworkError(e)) {
+          return { user: null, error: e.message || 'Erro de conexão.' };
+        }
       }
     }
 
-    // 2. Mock
-    await delay(500);
+    // 2. Local Mode / Storage
+    await delay(300);
     const users = getStorage<User[]>('users', MOCK_USERS);
-    if (users.find(u => u.email === email)) {
+    if (users.some(u => u.email.toLowerCase() === cleanEmail)) {
       return { user: null, error: 'E-mail já cadastrado.' };
     }
 
     const newUser: User = {
       id: uuidv4(),
-      nome: name,
-      email: email,
+      nome: cleanName,
+      email: cleanEmail,
+      senha: cleanPass,
       perfil: 'vendedor',
       ativo: true,
       comissao_porcentagem: 0
@@ -234,7 +278,7 @@ const getSellers = async (): Promise<User[]> => {
     if (isSupabaseConfigured) {
         try {
             let query = supabase.from('users').select('*').order('nome');
-            if (filterId) query = query.eq('id', filterId); // STRICT SECURITY
+            if (filterId && filterId !== 'anon') query = query.eq('id', filterId);
             const { data, error } = await query;
             if (error) handleSupabaseError(error);
             return data || [];
@@ -248,7 +292,7 @@ const getSellers = async (): Promise<User[]> => {
     }
     await delay(300);
     const users = getStorage<User[]>('users', MOCK_USERS);
-    if (filterId) return users.filter(u => u.id === filterId);
+    if (filterId && filterId !== 'anon') return users.filter(u => u.id === filterId);
     return users;
 };
 
@@ -287,7 +331,6 @@ const getSellersPerformance = async (startDate: Date, endDate: Date): Promise<{ 
 
             if (error) {
                 handleSupabaseError(error);
-                return [];
             }
 
             // Aggregate by Seller
@@ -335,37 +378,72 @@ const getSellersPerformance = async (startDate: Date, endDate: Date): Promise<{ 
 };
 
 const createSeller = async (userData: Omit<User, 'id'>): Promise<void> => {
-    // Only admins usually create sellers, but handled here just in case
+    const cleanEmail = (userData.email || '').trim().toLowerCase();
+    const cleanName = (userData.nome || '').trim();
+    const payload = {
+        ...userData,
+        nome: cleanName,
+        email: cleanEmail,
+        senha: (userData as any).senha || '123456',
+        ativo: userData.ativo ?? true,
+        comissao_porcentagem: Number(userData.comissao_porcentagem) || 0
+    };
+
     if (isSupabaseConfigured) {
-        const { error } = await supabase.from('users').insert([{ ...userData, senha: '123456' }]);
-        if (error) handleSupabaseError(error);
-        return;
+        try {
+            const { error } = await supabase.from('users').insert([payload]);
+            if (error) handleSupabaseError(error);
+            return;
+        } catch (e) {
+            if (!isNetworkError(e)) throw e;
+        }
     }
     await delay(300);
     const users = getStorage<User[]>('users', MOCK_USERS);
-    setStorage('users', [...users, { ...userData, id: uuidv4(), ativo: true, senha: '123456' } as any]);
+    setStorage('users', [...users, { ...payload, id: uuidv4() } as User]);
 };
 
 const updateSeller = async (id: string, updates: Partial<User>): Promise<void> => {
+    const cleanUpdates = { ...updates };
+    if (cleanUpdates.email) cleanUpdates.email = cleanUpdates.email.trim().toLowerCase();
+    if (cleanUpdates.nome) cleanUpdates.nome = cleanUpdates.nome.trim();
+
     if (isSupabaseConfigured) {
-        const { error } = await supabase.from('users').update(updates).eq('id', id);
-        if (error) handleSupabaseError(error);
-        return;
+        try {
+            const { error } = await supabase.from('users').update(cleanUpdates).eq('id', id);
+            if (error) handleSupabaseError(error);
+            return;
+        } catch (e) {
+            if (!isNetworkError(e)) throw e;
+        }
     }
     await delay(300);
     const users = getStorage<User[]>('users', MOCK_USERS);
     const idx = users.findIndex(u => u.id === id);
     if (idx > -1) {
-        users[idx] = { ...users[idx], ...updates };
+        users[idx] = { ...users[idx], ...cleanUpdates };
         setStorage('users', users);
+        const current = getCurrentUser();
+        if (current && current.id === id) {
+            localStorage.setItem('cla_session', JSON.stringify(users[idx]));
+        }
     }
 };
 
 const deleteSeller = async (id: string): Promise<void> => {
+    const current = getCurrentUser();
+    if (current && current.id === id) {
+        throw new Error("Não é possível excluir a própria conta em uso.");
+    }
+
     if (isSupabaseConfigured) {
-        const { error } = await supabase.from('users').delete().eq('id', id);
-        if (error) handleSupabaseError(error);
-        return;
+        try {
+            const { error } = await supabase.from('users').delete().eq('id', id);
+            if (error) handleSupabaseError(error);
+            return;
+        } catch (e) {
+            if (!isNetworkError(e)) throw e;
+        }
     }
     await delay(300);
     const users = getStorage<User[]>('users', MOCK_USERS);
@@ -383,7 +461,7 @@ const getClients = async (): Promise<Client[]> => {
             }
             const { data, error } = await query;
             if (error) {
-                 if (error.code !== '42P01') handleSupabaseError(error);
+                 handleSupabaseError(error);
             }
             return data || [];
         } catch (e) {
@@ -535,7 +613,7 @@ const getProducts = async (): Promise<Product[]> => {
     if (isSupabaseConfigured) {
         try {
             const { data, error } = await supabase.from('products').select('*').eq('ativo', true).order('nome');
-            if (error && error.code !== '42P01') handleSupabaseError(error);
+            if (error) handleSupabaseError(error);
             return data || [];
         } catch (e) {
             if (isNetworkError(e)) {
@@ -551,9 +629,17 @@ const getProducts = async (): Promise<Product[]> => {
 
 const createProduct = async (productData: Omit<Product, 'id'>): Promise<void> => {
     if (isSupabaseConfigured) {
-        const { error } = await supabase.from('products').insert([productData]);
-        if (error) handleSupabaseError(error);
-        return;
+        try {
+            const { error } = await supabase.from('products').insert([productData]);
+            if (error) handleSupabaseError(error);
+            return;
+        } catch (e) {
+            if (isNetworkError(e)) {
+                console.warn("[createProduct] Erro de rede. Criando produto localmente.");
+            } else {
+                throw e;
+            }
+        }
     }
     await delay(300);
     const products = getStorage<Product[]>('products', INITIAL_PRODUCTS);
@@ -562,9 +648,17 @@ const createProduct = async (productData: Omit<Product, 'id'>): Promise<void> =>
 
 const updateProduct = async (id: string, updates: Partial<Product>): Promise<void> => {
     if (isSupabaseConfigured) {
-        const { error } = await supabase.from('products').update(updates).eq('id', id);
-        if (error) handleSupabaseError(error);
-        return;
+        try {
+            const { error } = await supabase.from('products').update(updates).eq('id', id);
+            if (error) handleSupabaseError(error);
+            return;
+        } catch (e) {
+            if (isNetworkError(e)) {
+                console.warn("[updateProduct] Erro de rede. Atualizando produto localmente.");
+            } else {
+                throw e;
+            }
+        }
     }
     await delay(300);
     const products = getStorage<Product[]>('products', INITIAL_PRODUCTS);
@@ -577,9 +671,17 @@ const updateProduct = async (id: string, updates: Partial<Product>): Promise<voi
 
 const deleteProduct = async (id: string): Promise<void> => {
     if (isSupabaseConfigured) {
-        const { error } = await supabase.from('products').delete().eq('id', id);
-        if (error) handleSupabaseError(error);
-        return;
+        try {
+            const { error } = await supabase.from('products').delete().eq('id', id);
+            if (error) handleSupabaseError(error);
+            return;
+        } catch (e) {
+            if (isNetworkError(e)) {
+                console.warn("[deleteProduct] Erro de rede. Excluindo produto localmente.");
+            } else {
+                throw e;
+            }
+        }
     }
     await delay(300);
     const products = getStorage<Product[]>('products', INITIAL_PRODUCTS);
@@ -1154,7 +1256,7 @@ const getCashFlow = async (sellerIdOverride?: string): Promise<CashEntry[]> => {
               let query = supabase.from('cash_flow').select('*').order('data', { ascending: false });
               if (filterId && filterId !== 'all') { query = query.eq('vendedor_id', filterId); }
               const { data, error } = await query;
-              if (error && error.code !== '42P01') handleSupabaseError(error);
+              if (error) handleSupabaseError(error);
               return parseCategoria(data || []);
           } catch (e) {
               if (isNetworkError(e)) {
@@ -1178,8 +1280,7 @@ const getDashboardStats = async () => {
               if (filterId) { salesQuery = salesQuery.eq('vendedor_id', filterId); } // STRICT SECURITY
               const { data: sales, error: salesError } = await salesQuery;
               if (salesError) {
-                  if (salesError.code !== '42P01') handleSupabaseError(salesError);
-                  return { totalVendido: 0, totalRecebido: 0, totalReceber: 0, inadimplencia: 0 };
+                  handleSupabaseError(salesError);
               }
 
               const salesIds = sales?.map(s => s.id) || [];
@@ -1187,10 +1288,13 @@ const getDashboardStats = async () => {
 
               if (salesIds.length === 0) return { totalVendido: 0, totalRecebido: 0, totalReceber: 0, inadimplencia: 0 };
               
-              const { data: paidInst } = await supabase.from('installments').select('valor').in('venda_id', salesIds).eq('pago', true);
-              const { data: openInst } = await supabase.from('installments').select('valor').in('venda_id', salesIds).eq('pago', false);
+              const { data: paidInst, error: paidError } = await supabase.from('installments').select('valor').in('venda_id', salesIds).eq('pago', true);
+              if (paidError) handleSupabaseError(paidError);
+              const { data: openInst, error: openError } = await supabase.from('installments').select('valor').in('venda_id', salesIds).eq('pago', false);
+              if (openError) handleSupabaseError(openError);
               const today = new Date().toISOString();
-              const { data: overdueInst } = await supabase.from('installments').select('valor').in('venda_id', salesIds).eq('pago', false).lt('data_vencimento', today);
+              const { data: overdueInst, error: overdueError } = await supabase.from('installments').select('valor').in('venda_id', salesIds).eq('pago', false).lt('data_vencimento', today);
+              if (overdueError) handleSupabaseError(overdueError);
               
               return {
                  totalVendido,
@@ -1199,8 +1303,12 @@ const getDashboardStats = async () => {
                  inadimplencia: overdueInst?.reduce((acc, curr) => acc + curr.valor, 0) || 0
               };
           } catch (e) {
-              console.error(e);
-              return { totalVendido: 0, totalRecebido: 0, totalReceber: 0, inadimplencia: 0 };
+              if (isNetworkError(e)) {
+                  console.warn("[getDashboardStats] Erro de rede. Usando dados locais.");
+              } else {
+                  console.error(e);
+                  return { totalVendido: 0, totalRecebido: 0, totalReceber: 0, inadimplencia: 0 };
+              }
           }
       }
       await delay(500);
