@@ -186,29 +186,7 @@
     </style>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Caveat:wght@400;700&display=swap" rel="stylesheet">
     
-    <!-- IMPORT MAP: FIXED with 'bundle' to prevent load errors -->
-    <script type="importmap">
-    {
-      "imports": {
-        "react": "https://esm.sh/react@18.2.0",
-        "react/": "https://esm.sh/react@18.2.0/",
-        "react-dom": "https://esm.sh/react-dom@18.2.0",
-        "react-dom/": "https://esm.sh/react-dom@18.2.0/",
-        "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
-        "react-router-dom": "https://esm.sh/react-router-dom@6.22.3?bundle&deps=react@18.2.0,react-dom@18.2.0",
-        "recharts": "https://esm.sh/recharts@2.12.3?bundle&deps=react@18.2.0,react-dom@18.2.0,prop-types@15.8.1",
-        "lucide-react": "https://esm.sh/lucide-react@0.358.0?bundle&deps=react@18.2.0",
-        "uuid": "https://esm.sh/uuid@9.0.1?bundle",
-        "date-fns": "https://esm.sh/date-fns@3.6.0?bundle",
-        "date-fns/": "https://esm.sh/date-fns@3.6.0/",
-        "date-fns/locale": "https://esm.sh/date-fns@3.6.0/locale?bundle",
-        "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.39.0?bundle",
-        "prop-types": "https://esm.sh/prop-types@15.8.1",
-        "qrcode.react": "https://esm.sh/qrcode.react@3.1.0?bundle&deps=react@18.2.0,react-dom@18.2.0"
-      }
-    }
-    </script>
-  <link rel="stylesheet" href="/index.css">
+    <link rel="stylesheet" href="/index.css">
 </head>
   <body>
     <div id="root">
@@ -233,15 +211,13 @@
     <!-- PWA Service Worker Registration -->
     <script>
       if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/service-worker.js')
-            .then(registration => {
-              console.log('SW registered: ', registration);
-            })
-            .catch(registrationError => {
-              console.log('SW registration failed: ', registrationError);
-            });
-        });
+        if (window.location.hostname === 'localhost' || window.location.hostname.includes('run.app') || window.location.hostname.includes('studio')) {
+          navigator.serviceWorker.getRegistrations().then(registrations => {
+            for (let registration of registrations) {
+              registration.unregister();
+            }
+          });
+        }
       }
     </script>
   </body>
