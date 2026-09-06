@@ -6,6 +6,7 @@ import { Button, Input, Card, Modal } from '../components/ui';
 import { dataService, authService } from '../services/mockSupabase';
 import { isSupabaseConfigured } from '../services/supabaseClient';
 import { Client, User } from '../types';
+import { GoogleSheetsImportModal } from '../components/GoogleSheetsImportModal';
 
 // Sub-componente para tratar Avatar com Fallback de erro
 const ClientAvatar: React.FC<{ url?: string; name: string }> = ({ url, name }) => {
@@ -53,6 +54,7 @@ const Clients: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isGoogleSheetsModalOpen, setIsGoogleSheetsModalOpen] = useState(false);
   
   // Adjust Debt State
   const [isAdjustModalOpen, setIsAdjustModalOpen] = useState(false);
@@ -627,18 +629,40 @@ const Clients: React.FC = () => {
         </div>
       </Modal>
 
-      <Modal isOpen={isImportModalOpen} onClose={() => setIsImportModalOpen(false)} title="Importar Clientes (CSV)">
+      <Modal isOpen={isImportModalOpen} onClose={() => setIsImportModalOpen(false)} title="Importar Clientes">
          <div className="space-y-4">
-             <div className="bg-blue-500/10 p-4 rounded-xl text-sm text-blue-600 dark:text-blue-300 border border-blue-500/20">
-                <p className="font-bold mb-2">Instruções:</p>
-                <p className="mb-2">Salve como <strong>.csv</strong>. Use vírgula ou ponto-e-vírgula.</p>
-                <p className="text-xs">O sistema identificará clientes pelo <strong>Nome</strong> para atualizar dados existentes.</p>
-                <p className="text-xs mt-1 text-gray-500 dark:text-gray-400">Colunas ignoradas: ID Clientes, CPF, Mapa, Foto, Gatilho.</p>
+             {/* Google Sheets Option */}
+             <div className="bg-emerald-500/10 p-4 rounded-xl border border-emerald-500/20 text-emerald-800 dark:text-emerald-200">
+                <div className="flex items-center justify-between mb-2">
+                   <span className="font-bold text-sm">Google Sheets (Nuvem)</span>
+                   <span className="text-[10px] bg-emerald-500/20 text-emerald-600 dark:text-emerald-300 font-bold px-2 py-0.5 rounded-full">Recomendado</span>
+                </div>
+                <p className="text-xs text-emerald-700 dark:text-emerald-300 mb-3">
+                  Importe clientes inserindo o link da planilha ou conectando com sua conta do Google Drive.
+                </p>
+                <Button 
+                  fullWidth 
+                  onClick={() => { setIsImportModalOpen(false); setIsGoogleSheetsModalOpen(true); }}
+                  className="!bg-emerald-600 hover:!bg-emerald-700 !text-white"
+                >
+                   Importar do Google Sheets
+                </Button>
              </div>
-             <div className="py-4">
+
+             <div className="relative flex py-1 items-center">
+                <div className="flex-grow border-t border-gray-200 dark:border-gray-700"></div>
+                <span className="flex-shrink mx-3 text-xs text-gray-400">ou via arquivo local</span>
+                <div className="flex-grow border-t border-gray-200 dark:border-gray-700"></div>
+             </div>
+
+             <div className="bg-blue-500/10 p-4 rounded-xl text-sm text-blue-600 dark:text-blue-300 border border-blue-500/20">
+                <p className="font-bold mb-1">Arquivo CSV:</p>
+                <p className="text-xs">O sistema identificará clientes pelo <strong>Nome</strong> para atualizar dados existentes.</p>
+             </div>
+             <div>
                  <input type="file" accept=".csv" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
-                 <Button fullWidth onClick={() => fileInputRef.current?.click()} isLoading={loading}>
-                    Selecionar Arquivo CSV
+                 <Button fullWidth variant="outline" onClick={() => fileInputRef.current?.click()} isLoading={loading}>
+                    Selecionar Arquivo CSV (.csv)
                  </Button>
              </div>
              {importStatus && (
@@ -648,6 +672,13 @@ const Clients: React.FC = () => {
              )}
          </div>
       </Modal>
+
+      <GoogleSheetsImportModal
+        isOpen={isGoogleSheetsModalOpen}
+        onClose={() => setIsGoogleSheetsModalOpen(false)}
+        type="clients"
+        onImportSuccess={loadClients}
+      />
 
       <Modal isOpen={isDeleteModalOpen} onClose={() => setIsDeleteModalOpen(false)} title="Excluir Cliente">
          <div className="text-center space-y-4">
